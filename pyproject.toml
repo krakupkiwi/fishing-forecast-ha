@@ -14,6 +14,16 @@ dependencies = [
     "ephem==4.2.1",
 ]
 
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# This project is not a pip package — `custom_components/fishing_forecast/` is
+# installed by Home Assistant / HACS. `pip install -e .` here exists only to pull
+# the dev/test dependencies and expose the tooling config.
+py-modules = []
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
@@ -26,16 +36,24 @@ dev = [
     "freezegun>=1.5",
     "tzdata>=2024.1 ; sys_platform == 'win32'",
 ]
+# Home Assistant integration tests. Heavier; keep separate from `dev` so the pure
+# scoring core can be tested on Python versions HA does not yet support.
+ha = [
+    "pytest-homeassistant-custom-component>=0.13",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "-q"
+# tests/integration/ needs Home Assistant; tests/conftest.py skips that directory
+# when `homeassistant` is not importable (see collect_ignore_glob there).
 
 [tool.ruff]
 target-version = "py313"
 line-length = 100
 src = ["custom_components", "tests"]
+extend-exclude = [".venv", ".venv312", "docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "PL", "ASYNC", "DTZ"]
@@ -54,6 +72,9 @@ max-positional-args = 9
 # Test skeletons deliberately import lazily so skipped Phase-2 tests don't fail at
 # collection before the modules they target exist.
 "tests/*" = ["PLR2004", "S101", "PLC0415"]
+# __init__.py lazy-imports Home Assistant inside the setup functions so the pure
+# scoring core stays importable without HA installed (see the module docstring).
+"custom_components/fishing_forecast/__init__.py" = ["PLC0415"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
@@ -64,12 +85,27 @@ python_version = "3.13"
 strict = true
 warn_unreachable = true
 disallow_untyped_defs = true
-# Strict typing is enforced on the shipped integration only.
-files = ["custom_components"]
+# Errors are reported only for the modules explicitly listed below (the
+# framework-independent scoring core). The Home Assistant surface it transitively
+# imports (coordinator, entities, flows, websocket, HTTP client) is followed
+# silently here and type-checked for real in the CI `integration` job.
+follow_imports = "silent"
+files = [
+    "custom_components/fishing_forecast/const.py",
+    "custom_components/fishing_forecast/models.py",
+    "custom_components/fishing_forecast/util.py",
+    "custom_components/fishing_forecast/core.py",
+    "custom_components/fishing_forecast/entry_data.py",
+    "custom_components/fishing_forecast/serialize.py",
+    "custom_components/fishing_forecast/scoring",
+    "custom_components/fishing_forecast/astronomy",
+    "custom_components/fishing_forecast/api/_common.py",
+    "custom_components/fishing_forecast/api/open_meteo_weather.py",
+    "custom_components/fishing_forecast/api/open_meteo_marine.py",
+]
 
-# Home Assistant and ephem are untyped-ish in places; loosen only where needed.
 [[tool.mypy.overrides]]
-module = ["ephem", "homeassistant.*"]
+module = ["ephem", "homeassistant.*", "aiohttp.*", "voluptuous.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

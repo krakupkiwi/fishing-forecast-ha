@@ -11,8 +11,14 @@ models + test strategy.
 > **Phase 2 update (2026-09-10):** the core models, Open-Meteo parsers, `ephem`
 > astronomy, solunar periods and the full scoring engine are now implemented in
 > `custom_components/fishing_forecast/` and tested (102 tests). Deviations found
-> during implementation are noted inline below and in `docs/scoring.md`. Still no
-> Home Assistant wiring (Phase 3).
+> during implementation are noted inline below and in `docs/scoring.md`.
+>
+> **Phase 3 update (2026-09-10):** the Home Assistant integration is wired up —
+> config/options flow, `DataUpdateCoordinator`, four sensors, diagnostics, and a
+> `fishing_forecast/hourly` websocket command. `__init__.py` lazy-imports Home
+> Assistant so the scoring core stays importable without it. Integration tests
+> (`tests/integration/`) use `pytest-homeassistant-custom-component` and run on
+> Linux/macOS only (HA's test harness needs a POSIX event loop). See §11.
 
 ---
 
@@ -486,4 +492,38 @@ What changed from the §9 plan during implementation:
    bundles it in production).
 
 Deferred to later phases: `freezegun`-based time-freezing tests, `syrupy` snapshot
-of a whole `ForecastBundle`, and the CI workflow file.
+of a whole `ForecastBundle`.
+
+---
+
+## 11. Phase 3 outcome (Home Assistant integration)
+
+Built in `custom_components/fishing_forecast/`:
+
+| File | Role |
+|---|---|
+| `__init__.py` | `async_setup_entry` / `async_unload_entry`. **Lazy-imports HA** inside the functions so the pure core stays importable without HA installed. |
+| `api/client.py` | `OpenMeteoClient` over HA's shared `aiohttp` session; 30 s timeout; `OpenMeteoError` on failure. |
+| `coordinator.py` | `FishingForecastCoordinator(DataUpdateCoordinator[ForecastBundle])`. Three `asyncio.gather` fetches (weather + fine marine + gfswave), `build_forecast` in the executor (ephem hop), `always_update=False`, `UpdateFailed` on weather loss. `type FishingForecastConfigEntry = ConfigEntry[…]`. |
+| `entry_data.py` | `ConfigEntry.data`/`.options` → `LocationConfig` / `ScoringConfig`. HA-free, unit-testable. |
+| `config_flow.py` | UI setup (name, two `LocationSelector`s, coast bearing, forecast days) with unique-id de-dup; options flow (window, preferred hours, update interval, bearing, 7 weight %s renormalised on save). |
+| `sensor.py` | Four `CoordinatorEntity` sensors: `fishing_score` (next best day, 0–100), `fishing_conditions_today`, `best_fishing_window` (`"HH:MM-HH:MM"` local), `best_fishing_day` (`DATE`, carries the 14-row `days` array + `health`). |
+| `serialize.py` | Dataclasses → JSON-native dicts for the websocket + diagnostics. |
+| `websocket.py` | `fishing_forecast/hourly` command → full hourly series (kept out of entity attributes). |
+| `diagnostics.py` | Redacted entry dump + full bundle. |
+
+**`ForecastBundle.generated_utc` is now `field(compare=False)`** so an unchanged
+forecast compares equal (required for `always_update=False`).
+
+### Testing constraint
+
+`pytest-homeassistant-custom-component` needs a POSIX event loop; HA's Windows
+`ProactorEventLoop` trips `pytest-socket` during fixture setup, so the integration
+tests **cannot run on Windows**. They run in CI on Linux (`ci.yml` → `integration`
+job) and were validated locally via a Linux (WSL) venv. The pure-core suite
+(`tests/`, 104 tests) has no such constraint. `tests/conftest.py` skips
+`tests/integration/` when `homeassistant` is not importable.
+
+mypy `--strict` covers the framework-independent modules; the HA surface is
+followed silently locally and type-checked with HA present in the `integration` CI
+job.

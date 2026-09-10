@@ -319,7 +319,9 @@ class DataHealth:
     marine_fine: SourceHealth = SourceHealth.OK
     marine_extended: SourceHealth = SourceHealth.OK
     astronomy: SourceHealth = SourceHealth.OK
-    generated_utc: datetime | None = None
+    # Wall-clock of the build; excluded from equality so an unchanged forecast
+    # compares equal (lets the coordinator use always_update=False).
+    generated_utc: datetime | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -327,11 +329,11 @@ class ForecastBundle:
     """The coordinator's return value. Comparable so ``always_update=False`` works."""
 
     location: LocationConfig
-    generated_utc: datetime
     hourly: tuple[HourlyScore, ...]
     daily: tuple[DailyForecast, ...]
     best_day: DailyForecast | None
     health: DataHealth
+    generated_utc: datetime = field(compare=False)
 
 
 # --------------------------------------------------------------------------- #

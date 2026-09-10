@@ -87,11 +87,20 @@ CONF_COAST_BEARING: Final = "coast_bearing"
 CONF_TIMEZONE: Final = "timezone"
 CONF_FORECAST_DAYS: Final = "forecast_days"
 
+# Options-flow keys
 OPT_WINDOW_HOURS: Final = "window_hours"
-OPT_PREFERRED_HOURS: Final = "preferred_hours"
-OPT_WEIGHTS_FULL: Final = "weights_full"
-OPT_WEIGHTS_OUTLOOK: Final = "weights_outlook"
+OPT_PREFERRED_START: Final = "preferred_hours_start"
+OPT_PREFERRED_END: Final = "preferred_hours_end"
+OPT_UPDATE_MINUTES: Final = "update_interval_minutes"
 OPT_COAST_BEARING: Final = "coast_bearing"
+# Full-forecast component weights, as whole-number percentages in the options form.
+OPT_WEIGHT_PREFIX: Final = "weight_"
+
+MIN_FORECAST_DAYS: Final = 7
+MIN_WINDOW_HOURS: Final = 2
+MAX_WINDOW_HOURS: Final = 6
+MIN_UPDATE_MINUTES: Final = 15
+MAX_UPDATE_MINUTES: Final = 180
 
 # Mindarie, WA — the initial target location (spec).
 DEFAULT_LOCATION: Final = {

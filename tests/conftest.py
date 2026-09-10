@@ -17,6 +17,15 @@ from custom_components.fishing_forecast.models import LocationConfig
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
+# The integration tests need Home Assistant, which does not install on every Python
+# version the pure core supports. Skip that whole directory when HA is absent so its
+# conftest (which imports homeassistant) is never loaded.
+collect_ignore: list[str] = []
+try:
+    import homeassistant  # noqa: F401
+except ImportError:
+    collect_ignore.append("integration")
+
 
 def _load(name: str) -> dict[str, Any]:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))

@@ -7,12 +7,16 @@ A Home Assistant custom integration + Lovelace card that predicts the best
 First target location: **Mindarie, Western Australia**. The design supports multiple
 configurable locations (Two Rocks, Lancelin, Hillarys, North Mole, Fremantle, …).
 
-> **Status: Phase 2 (core scoring engine) complete.** The framework-independent
-> models, astronomy, Open-Meteo parsers and scoring engine are implemented and
-> tested (102 tests, ~96% coverage on the core). No Home Assistant wiring yet.
-> See [`docs/research.md`](docs/research.md) for findings,
+> **Status: Phase 3 (Home Assistant integration) complete.** The custom
+> integration installs from the UI: config + options flow, a
+> `DataUpdateCoordinator` that polls Open-Meteo and runs the scoring core, four
+> sensors, diagnostics, and a `fishing_forecast/hourly` websocket command for the
+> future card. The scoring core has 104 tests (~96% coverage); the HA surface has
+> integration tests that run on Linux/macOS (see
+> [`tests/integration/`](tests/integration/)). See
+> [`docs/research.md`](docs/research.md) for findings,
 > [`docs/scoring.md`](docs/scoring.md) for the scoring model, and
-> [`docs/project-spec.md`](docs/project-spec.md) for the full specification.
+> [`docs/architecture.md`](docs/architecture.md) for module boundaries.
 
 ## How it works
 

@@ -3,33 +3,54 @@
     "step": {
       "user": {
         "title": "Add a fishing location",
-        "description": "Marine data is requested at a separate offshore coordinate so the wave model does not resolve to a land grid cell.",
+        "description": "Pick the spot you fish from, then a point a few kilometres offshore for the wave model (requesting marine data on land can snap to an unusable grid cell). Coast bearing points from the shore straight out to sea — 270° for a west-facing Perth beach.",
         "data": {
           "name": "Location name",
-          "latitude": "Latitude",
-          "longitude": "Longitude",
-          "marine_latitude": "Marine latitude (offshore)",
-          "marine_longitude": "Marine longitude (offshore)",
-          "coast_bearing": "Coast bearing (degrees from shore out to sea)",
-          "timezone": "Time zone",
+          "land_location": "Fishing spot (on shore)",
+          "marine_location": "Offshore point (for waves & swell)",
+          "coast_bearing": "Coast bearing (degrees, shore → sea)",
           "forecast_days": "Forecast length (days)"
         }
       }
     },
     "abort": {
-      "already_configured": "This location is already configured."
+      "already_configured": "A fishing location with these coordinates is already set up."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Fishing Forecast options",
+        "title": "Fishing Forecast tuning",
+        "description": "Weights are percentages of the full-forecast score and are re-normalised on save. Leave the preferred hours blank to consider the whole day.",
         "data": {
           "window_hours": "Fishing window length (hours)",
-          "preferred_hours": "Preferred fishing hours (local, e.g. 4-21)",
-          "coast_bearing": "Coast bearing (degrees)"
+          "preferred_hours_start": "Earliest preferred hour (0–23, local)",
+          "preferred_hours_end": "Latest preferred hour (0–23, local)",
+          "update_interval_minutes": "Update interval",
+          "coast_bearing": "Coast bearing (degrees)",
+          "weight_wind": "Weight: wind",
+          "weight_swell": "Weight: swell",
+          "weight_tide": "Weight: tide",
+          "weight_solunar": "Weight: solunar",
+          "weight_sun": "Weight: dawn / dusk",
+          "weight_rain": "Weight: rain",
+          "weight_pressure": "Weight: pressure trend"
         }
       }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "score": {
+        "name": "Fishing score",
+        "state_attributes": {
+          "rating": { "name": "Rating" },
+          "confidence": { "name": "Confidence" }
+        }
+      },
+      "today": { "name": "Fishing conditions today" },
+      "best_window": { "name": "Best fishing window" },
+      "best_day": { "name": "Best fishing day" }
     }
   }
 }

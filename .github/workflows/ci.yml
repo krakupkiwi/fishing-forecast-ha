@@ -6,7 +6,8 @@ on:
   pull_request:
 
 jobs:
-  lint-type-test:
+  core:
+    name: core (lint + type + test)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -17,18 +18,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install
-        run: |
+      - run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
-      - name: Ruff (lint + format)
+      - name: Ruff
         run: |
           ruff check .
           ruff format --check .
-      - name: mypy
+      - name: mypy (scoring core)
         run: mypy
-      - name: pytest
+      - name: pytest (scoring core)
         run: pytest --cov=custom_components/fishing_forecast --cov-report=term-missing
 
-  # hassfest + HACS validation are added in Phase 3, once __init__.py / config_flow.py
-  # are real (they currently pass hassfest's manifest checks but not its code checks).
+  integration:
+    name: home assistant integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,ha]"
+      - name: pytest (integration)
+        run: pytest tests/integration -p no:randomly
+
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
