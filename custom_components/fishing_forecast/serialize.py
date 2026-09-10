@@ -13,7 +13,13 @@ from .models import (
     FishingWindow,
     ForecastBundle,
     HourlyScore,
+    SolunarPeriod,
+    TideExtremePoint,
 )
+
+
+def _round(value: float | None, digits: int = 1) -> float | None:
+    return round(value, digits) if value is not None else None
 
 
 def _iso(value: Any) -> str | None:
@@ -47,9 +53,12 @@ def _components_to_dict(components: ComponentScores) -> dict[str, float | None]:
 
 
 def hour_to_dict(hour: HourlyScore) -> dict[str, Any]:
+    weather = hour.weather
+    marine = hour.marine
+    tide = hour.tide
     return {
         "time": hour.time_utc.isoformat(),
-        "score": (round(hour.score, 1) if hour.score is not None else None),
+        "score": _round(hour.score),
         "rating": hour.rating.value,
         "confidence": hour.confidence.value,
         "components": _components_to_dict(hour.components),
@@ -58,6 +67,18 @@ def hour_to_dict(hour: HourlyScore) -> dict[str, Any]:
         "pressure_trend": hour.pressure_trend.value if hour.pressure_trend else None,
         "inside_major": hour.inside_major,
         "inside_minor": hour.inside_minor,
+        # raw conditions for the day-detail view
+        "wind_speed_kmh": _round(weather.wind_speed_kmh) if weather else None,
+        "wind_direction_deg": _round(weather.wind_direction_deg, 0) if weather else None,
+        "wind_gust_kmh": _round(weather.wind_gust_kmh) if weather else None,
+        "precip_mm_h": _round(weather.precip_mm_h, 2) if weather else None,
+        "pressure_hpa": _round(weather.pressure_msl_hpa) if weather else None,
+        "swell_height_m": _round(marine.swell_height_m, 2) if marine else None,
+        "swell_period_s": _round(marine.swell_period_s) if marine else None,
+        "swell_direction_deg": _round(marine.swell_direction_deg, 0) if marine else None,
+        "wave_height_m": _round(marine.wave_height_m, 2) if marine else None,
+        "tide_height_m": _round(tide.height_m, 2) if tide else None,
+        "tide_state": tide.direction.value if tide and tide.direction else None,
     }
 
 
@@ -96,10 +117,30 @@ def bundle_summary(bundle: ForecastBundle) -> dict[str, Any]:
     }
 
 
+def period_to_dict(period: SolunarPeriod) -> dict[str, Any]:
+    return {
+        "kind": period.kind.value,
+        "start": period.start_utc.isoformat(),
+        "end": period.end_utc.isoformat(),
+        "centre": period.centre_utc.isoformat(),
+        "event": period.centre_event,
+    }
+
+
+def tide_extreme_to_dict(point: TideExtremePoint) -> dict[str, Any]:
+    return {
+        "time": point.time_utc.isoformat(),
+        "kind": point.kind.value,
+        "height_m": round(point.height_m, 2),
+    }
+
+
 def bundle_full(bundle: ForecastBundle) -> dict[str, Any]:
     """Everything, for the websocket command and diagnostics."""
 
     return {
         **bundle_summary(bundle),
         "hourly": [hour_to_dict(h) for h in bundle.hourly],
+        "solunar_periods": [period_to_dict(p) for p in bundle.solunar_periods],
+        "tide_extremes": [tide_extreme_to_dict(e) for e in bundle.tide_extremes],
     }

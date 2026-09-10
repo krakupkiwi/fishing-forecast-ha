@@ -37,6 +37,16 @@ async def test_setup_creates_sensors(hass: HomeAssistant, config_entry, mock_ope
     best_day = hass.states.get("sensor.mindarie_best_fishing_day")
     assert best_day is not None
     assert len(best_day.attributes["days"]) == 14
+    assert best_day.attributes["entry_id"] == config_entry.entry_id
+
+
+async def test_card_is_served(hass: HomeAssistant, config_entry, mock_open_meteo, hass_client):
+    from custom_components.fishing_forecast import CARD_URL
+
+    await setup_integration(hass, config_entry)
+    resp = await (await hass_client()).get(CARD_URL)
+    assert resp.status == 200
+    assert 'customElements.define("fishing-forecast-card"' in await resp.text()
 
 
 async def test_unload(hass: HomeAssistant, config_entry, mock_open_meteo) -> None:

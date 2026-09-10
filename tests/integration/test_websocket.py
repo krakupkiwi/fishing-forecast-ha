@@ -23,7 +23,20 @@ async def test_ws_hourly_returns_full_series(
     assert len(result["hourly"]) == 14 * 24
     assert len(result["days"]) == 14
     first = result["hourly"][0]
-    assert set(first) >= {"time", "score", "rating", "confidence", "components", "weights"}
+    assert set(first) >= {
+        "time",
+        "score",
+        "rating",
+        "confidence",
+        "components",
+        "weights",
+        "wind_speed_kmh",
+        "swell_height_m",
+        "tide_state",
+    }
+    assert result["solunar_periods"]
+    assert {p["kind"] for p in result["solunar_periods"]} <= {"major", "minor"}
+    assert "tide_extremes" in result
 
 
 async def test_ws_hourly_unknown_entry(

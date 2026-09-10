@@ -527,3 +527,39 @@ job) and were validated locally via a Linux (WSL) venv. The pure-core suite
 mypy `--strict` covers the framework-independent modules; the HA surface is
 followed silently locally and type-checked with HA present in the `integration` CI
 job.
+
+---
+
+## 12. Phase 4 outcome (Lovelace card)
+
+`custom_components/fishing_forecast/frontend/fishing-forecast-card.js` — plain
+custom element, no build step, ~500 lines incl. CSS. Ships inside the integration
+and auto-registers on setup (`__init__._async_register_card` → static path +
+`frontend.add_extra_js_url`; best-effort, never blocks setup). `docs/card.md` has
+the config.
+
+- Reads the daily summary (`days[]`, `best_*`, `health`, `entry_id`) from the
+  `…_best_fishing_day` sensor's attributes; pulls the ~336-row hourly series on
+  demand via the `fishing_forecast/hourly` websocket command when a day is opened.
+- Layout: next-best panel · coloured day strip (best day starred, dashed
+  full→outlook boundary) · best-windows list · tap-through day-detail SVG chart
+  (score curve, wind overlay, solunar major/minor bands, sunrise/sunset markers,
+  tide high/low markers with times, peak-wind + swell readout) · data-health line.
+- Uses HA theme variables throughout — verified in light and dark, at 300–440 px.
+
+Model changes for the card:
+
+1. `HourlyScore` gained `weather` / `marine` / `tide` references so the day-detail
+   view can show the real conditions behind each hour's score (aligns with the
+   spec's hourly data-model example).
+2. `ForecastBundle` gained `solunar_periods` and `tide_extremes` tuples.
+3. `serialize.hour_to_dict` now emits raw wind/swell/tide fields; `bundle_full`
+   adds `solunar_periods` and `tide_extremes`. Full payload ≈ 245 KB (websocket
+   only, never entity attributes).
+4. Each sensor's attributes carry `entry_id` so the card can address the
+   websocket command.
+
+Observed in the rendered card (real fixture data): the "best windows" for the
+default config land at night / pre-dawn a lot — the solunar-major-at-night bias
+noted in §10 item repeated. The `preferred_hours` option is the user-facing fix;
+Phase 5 calibration is the systemic one.

@@ -133,6 +133,9 @@ def score_hour(
         pressure_trend=pressure_trend,
         inside_major=inside_major,
         inside_minor=inside_minor,
+        weather=weather,
+        marine=marine,
+        tide=tide_state,
     )
 
 

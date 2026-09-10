@@ -84,6 +84,7 @@ def build_forecast(
     tide_samples = [TideSample(m.time_utc, m.sea_level_m) for m in marine_hours]
     tide_states = tide_mod.derive(tide_samples, cfg)
     tide_by_time = {t.time_utc: t for t in tide_states}
+    all_extremes = tide_mod.find_extrema(tide_samples, cfg)
 
     hourly = engine.score_series(
         location, weather_hours, marine_by_time, tide_by_time, periods, astro_by_date, cfg
@@ -91,6 +92,8 @@ def build_forecast(
 
     cutoff = first_day + timedelta(days=days)
     hourly = [h for h in hourly if local_date_of(h.time_utc, tz) < cutoff]
+    solunar_periods = tuple(p for p in periods if local_date_of(p.centre_utc, tz) < cutoff)
+    tide_extremes = tuple(e for e in all_extremes if local_date_of(e.time_utc, tz) < cutoff)
 
     windows = windows_mod.best_windows(location, hourly, cfg)
     daily = windows_mod.summarise_days(location, hourly, windows, astro_by_date, cfg)
@@ -113,4 +116,6 @@ def build_forecast(
         daily=tuple(daily),
         best_day=best_day,
         health=health,
+        solunar_periods=solunar_periods,
+        tide_extremes=tide_extremes,
     )

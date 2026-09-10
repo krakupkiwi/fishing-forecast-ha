@@ -7,16 +7,15 @@ A Home Assistant custom integration + Lovelace card that predicts the best
 First target location: **Mindarie, Western Australia**. The design supports multiple
 configurable locations (Two Rocks, Lancelin, Hillarys, North Mole, Fremantle, …).
 
-> **Status: Phase 3 (Home Assistant integration) complete.** The custom
-> integration installs from the UI: config + options flow, a
-> `DataUpdateCoordinator` that polls Open-Meteo and runs the scoring core, four
-> sensors, diagnostics, and a `fishing_forecast/hourly` websocket command for the
-> future card. The scoring core has 104 tests (~96% coverage); the HA surface has
-> integration tests that run on Linux/macOS (see
-> [`tests/integration/`](tests/integration/)). See
-> [`docs/research.md`](docs/research.md) for findings,
-> [`docs/scoring.md`](docs/scoring.md) for the scoring model, and
-> [`docs/architecture.md`](docs/architecture.md) for module boundaries.
+> **Status: Phase 4 (Lovelace card) complete.** The integration installs from the
+> UI (config + options flow, `DataUpdateCoordinator`, four sensors, diagnostics,
+> `fishing_forecast/hourly` websocket) and ships a Lovelace card that
+> auto-registers on setup: next-best session, coloured day strip, best-window
+> list, full/outlook boundary, and a tap-through day-detail chart (hourly score,
+> wind, solunar bands, tide markers, sunrise/sunset). Scoring core: 107 tests,
+> ~96% coverage. See [`docs/card.md`](docs/card.md),
+> [`docs/research.md`](docs/research.md), [`docs/scoring.md`](docs/scoring.md),
+> [`docs/architecture.md`](docs/architecture.md).
 
 ## How it works
 
@@ -38,36 +37,38 @@ See [`docs/scoring.md`](docs/scoring.md) for every constant and
 ## Repository layout
 
 ```
-custom_components/fishing_forecast/   the Home Assistant integration (Phase 3)
+custom_components/fishing_forecast/
   api/           Open-Meteo clients + JSON→dataclass parsing
   astronomy/     ephem wrapper + solunar period calculation
   scoring/       pure scoring functions, rolling windows, daily summaries
+  frontend/      fishing-forecast-card.js  (the Lovelace card)
   models.py      typed dataclasses (the internal data model)
-  const.py       DOMAIN + configurable scoring defaults
-frontend/        Lovelace card (Phase 4)
-docs/            research.md, scoring.md, architecture.md, project-spec.md
-tests/           pytest suite + committed Open-Meteo fixtures
+  core.py        build_forecast(location, payloads, cfg) -> ForecastBundle
+  coordinator.py / config_flow.py / sensor.py / websocket.py / …  HA surface
+docs/            research.md, scoring.md, architecture.md, card.md, project-spec.md
+tests/           core suite + integration/ (HA, Linux only) + Open-Meteo fixtures
 ```
 
 ## Development
 
 ```bash
 python -m venv .venv && . .venv/bin/activate      # or .venv\Scripts\activate on Windows
-pip install -e ".[dev]"
+pip install -e ".[dev]"                            # add ",ha" for the integration tests (Linux/macOS)
 ruff check . && ruff format --check .
-mypy custom_components
-pytest
+mypy
+pytest                                             # core suite; skips tests/integration/ without HA
 ```
 
-The core scoring library (`scoring/`, `astronomy/`, `models.py`) imports nothing from
-Home Assistant and is tested against stored API fixtures in `tests/fixtures/`.
+The scoring core (`models.py`, `util.py`, `core.py`, `scoring/`, `astronomy/`,
+`api/open_meteo_*`) imports nothing from Home Assistant and is tested against
+stored API fixtures in `tests/fixtures/`.
 
 ## Roadmap
 
 1. ✅ **Phase 1** — research & API validation (`docs/research.md`)
 2. ✅ **Phase 2** — framework-independent models + scoring engine + tests
-3. **Phase 3** — Home Assistant integration (config flow, coordinator, sensors, diagnostics)
-4. **Phase 4** — Lovelace card
+3. ✅ **Phase 3** — Home Assistant integration (config flow, coordinator, sensors, diagnostics)
+4. ✅ **Phase 4** — Lovelace card (`docs/card.md`)
 5. **Phase 5** — calibration against real fishing sessions
 6. **Phase 6** — tide upgrade (EOT20 / official source), if demonstrably better
 

@@ -290,6 +290,11 @@ class HourlyScore:
     pressure_trend: PressureTrend | None = None
     inside_major: bool = False
     inside_minor: bool = False
+    # References to the raw inputs, so the card's day-detail view can show the
+    # actual conditions (wind km/h, swell m @ s, tide state) behind the score.
+    weather: WeatherHour | None = None
+    marine: MarineHour | None = None
+    tide: TideState | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,6 +339,8 @@ class ForecastBundle:
     best_day: DailyForecast | None
     health: DataHealth
     generated_utc: datetime = field(compare=False)
+    solunar_periods: tuple[SolunarPeriod, ...] = ()
+    tide_extremes: tuple[TideExtremePoint, ...] = ()
 
 
 # --------------------------------------------------------------------------- #

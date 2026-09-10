@@ -32,6 +32,12 @@ def test_full_bundle_shape(mindarie, weather_payload, marine_fine_payload, marin
     assert bundle.best_day is not None
     assert bundle.best_day.score == max(d.score for d in bundle.daily if d.score is not None)
 
+    # enrichment for the card's day-detail view
+    assert len(bundle.solunar_periods) > 20
+    assert len(bundle.tide_extremes) > 10
+    assert bundle.hourly[24].weather is not None
+    assert bundle.hourly[24].marine is not None
+
 
 def test_every_hourly_score_is_bounded_or_none(
     mindarie, weather_payload, marine_fine_payload, marine_extended_payload

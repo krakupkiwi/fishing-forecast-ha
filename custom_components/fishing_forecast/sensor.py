@@ -185,6 +185,7 @@ class FishingForecastSensor(CoordinatorEntity[FishingForecastCoordinator], Senso
         super().__init__(coordinator)
         self._description = description
         self._tz = coordinator.location.timezone
+        self._entry_id = entry.entry_id
         self._attr_unique_id = f"{entry.entry_id}_{description.key}"
         self._attr_translation_key = description.translation_key
         self._attr_icon = description.icon
@@ -209,4 +210,7 @@ class FishingForecastSensor(CoordinatorEntity[FishingForecastCoordinator], Senso
     def extra_state_attributes(self) -> dict[str, Any]:
         if self.coordinator.data is None:
             return {}
-        return self._description.attr_fn(self.coordinator.data, self._tz)
+        attrs = self._description.attr_fn(self.coordinator.data, self._tz)
+        # The card uses this to call the fishing_forecast/hourly websocket command.
+        attrs["entry_id"] = self._entry_id
+        return attrs
