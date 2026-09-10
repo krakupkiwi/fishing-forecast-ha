@@ -59,7 +59,10 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     """Serve the Lovelace card and add it as a dashboard resource (once).
 
     Best-effort: a failure here must not stop the integration from loading —
-    the user can still add the resource manually (see docs/card.md).
+    the user can still add the resource manually (see docs/card.md). ``frontend``
+    is an ``after_dependencies`` (not a hard one) in the manifest: it is always
+    set up in a real HA instance, but not in the integration-test environment,
+    where ``add_extra_js_url`` below simply raises and is swallowed.
     """
 
     if hass.data.get(_CARD_KEY):
