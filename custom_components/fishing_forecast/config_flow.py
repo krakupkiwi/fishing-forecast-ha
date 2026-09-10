@@ -21,6 +21,7 @@ from .const import (
     CONF_MARINE_LONGITUDE,
     CONF_NAME,
     CONF_PROFILE,
+    CONF_TIDE_STATION,
     CONF_TIMEZONE,
     DEFAULT_FORECAST_DAYS,
     DEFAULT_UPDATE_MINUTES,
@@ -135,6 +136,23 @@ class FishingForecastOptionsFlow(OptionsFlow):
                 OPT_PROFILE,
                 default=opts.get(OPT_PROFILE) or data.get(CONF_PROFILE) or DEFAULT_PROFILE,
             ): _PROFILE,
+            vol.Optional(
+                CONF_TIDE_STATION,
+                description={
+                    "suggested_value": opts.get(CONF_TIDE_STATION) or data.get(CONF_TIDE_STATION)
+                },
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value="", label="Auto (nearest)"),
+                        selector.SelectOptionDict(
+                            value="fremantle", label="Fremantle (Perth metro)"
+                        ),
+                        selector.SelectOptionDict(value="none", label="Off — modelled tide only"),
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            ),
             vol.Required(
                 OPT_WINDOW_HOURS,
                 default=opts.get(OPT_WINDOW_HOURS, DEFAULT_WINDOW_HOURS),

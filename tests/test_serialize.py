@@ -73,9 +73,10 @@ def test_bundle_full_has_hourly_raw_and_markers(
     assert {e["kind"] for e in full["tide_extremes"]} <= {"high", "low"}
 
 
-def test_outlook_days_have_no_marine_raw(weather_payload):
+def test_outlook_days_have_no_marine_raw_but_keep_harmonic_tide(weather_payload):
     full = bundle_full(_bundle(weather_payload, None, None))
     for hour in full["hourly"]:
         assert hour["swell_height_m"] is None
-        assert hour["tide_state"] is None
-    assert full["tide_extremes"] == []
+    # harmonic tide (Mindarie -> Fremantle) still fills the tide fields + markers
+    assert any(h["tide_state"] is not None for h in full["hourly"])
+    assert full["tide_extremes"]

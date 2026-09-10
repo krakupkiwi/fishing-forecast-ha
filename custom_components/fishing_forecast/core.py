@@ -27,6 +27,7 @@ from .models import (
 from .scoring import engine
 from .scoring import tide as tide_mod
 from .scoring import windows as windows_mod
+from .tide_harmonic import extend_tide_samples, resolve_station
 from .util import local_date_of
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,7 +82,15 @@ def build_forecast(
     periods = solunar.periods(astro, cfg)
 
     marine_by_time = {m.time_utc: m for m in marine_hours}
-    tide_samples = [TideSample(m.time_utc, m.sea_level_m) for m in marine_hours]
+
+    # Modelled tide where Open-Meteo has it; harmonic prediction past its horizon
+    # so tide scoring covers the whole forecast, not just the first ~9.5 days.
+    sea_by_time = {m.time_utc: m.sea_level_m for m in marine_hours}
+    station = resolve_station(location.tide_station, location.latitude, location.longitude)
+    tide_samples = extend_tide_samples(
+        [TideSample(w.time_utc, sea_by_time.get(w.time_utc)) for w in weather_hours],
+        station,
+    )
     tide_states = tide_mod.derive(tide_samples, cfg)
     tide_by_time = {t.time_utc: t for t in tide_states}
     all_extremes = tide_mod.find_extrema(tide_samples, cfg)

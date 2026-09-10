@@ -17,6 +17,7 @@ from .const import (
     CONF_MARINE_LONGITUDE,
     CONF_NAME,
     CONF_PROFILE,
+    CONF_TIDE_STATION,
     CONF_TIMEZONE,
     DEFAULT_FORECAST_DAYS,
     DEFAULT_UPDATE_MINUTES,
@@ -51,6 +52,7 @@ def location_from_entry(data: Mapping[str, Any], options: Mapping[str, Any]) -> 
         marine_longitude=float(data[CONF_MARINE_LONGITUDE]),
         coast_bearing=wrap360(coast_bearing),
         timezone=str(data.get(CONF_TIMEZONE) or "UTC"),
+        tide_station=(options.get(CONF_TIDE_STATION) or data.get(CONF_TIDE_STATION) or None),
     )
 
 

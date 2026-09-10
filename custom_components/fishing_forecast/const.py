@@ -87,6 +87,7 @@ CONF_COAST_BEARING: Final = "coast_bearing"
 CONF_TIMEZONE: Final = "timezone"
 CONF_FORECAST_DAYS: Final = "forecast_days"
 CONF_PROFILE: Final = "profile"
+CONF_TIDE_STATION: Final = "tide_station"
 
 # Options-flow keys
 OPT_PROFILE: Final = "profile"

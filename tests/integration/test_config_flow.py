@@ -56,6 +56,7 @@ async def test_options_flow_round_trip(hass: HomeAssistant, config_entry, mock_o
 
     submit = {
         "profile": "rock_snapper",
+        "tide_station": "none",
         OPT_WINDOW_HOURS: 4,
         "update_interval_minutes": 45,
         "coast_bearing": 260,
@@ -67,3 +68,4 @@ async def test_options_flow_round_trip(hass: HomeAssistant, config_entry, mock_o
     assert config_entry.options[OPT_WINDOW_HOURS] == 4
     assert config_entry.options["coast_bearing"] == 260
     assert config_entry.options["profile"] == "rock_snapper"
+    assert config_entry.options["tide_station"] == "none"

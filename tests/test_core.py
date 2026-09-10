@@ -77,11 +77,21 @@ def test_marine_completely_missing_still_produces_outlook(mindarie, weather_payl
     assert all(d.confidence is Confidence.OUTLOOK for d in bundle.daily)
     assert bundle.health.marine_fine is SourceHealth.FAILED
     assert bundle.health.marine_extended is SourceHealth.FAILED
-    # wind/solunar/sun still drive a usable score
     assert any(d.score is not None for d in bundle.daily)
     for h in bundle.hourly:
-        assert h.components.swell is None
-        assert h.components.tide is None
+        assert h.components.swell is None  # no swell data at all
+    # but the harmonic tide model (Mindarie -> Fremantle) still drives tide scoring
+    assert any(h.components.tide is not None for h in bundle.hourly)
+    assert bundle.tide_extremes
+
+
+def test_tide_station_off_disables_harmonic(mindarie, weather_payload):
+    from dataclasses import replace
+
+    no_tide = replace(mindarie, tide_station="none")
+    bundle = build_forecast(no_tide, weather_payload, None, None, CFG, days=8, now_utc=NOW)
+    assert all(h.components.tide is None for h in bundle.hourly)
+    assert bundle.tide_extremes == ()
 
 
 def test_weather_error_propagates(mindarie):

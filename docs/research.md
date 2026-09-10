@@ -602,3 +602,21 @@ Full detail in `docs/calibration.md`; knowledge sources in
 - `sun.night_score` optional key — full darkness returns it instead of `sun.base`
   for the nocturnal profiles.
 - `FishingForecastCoordinator.profile` exposed for the feedback service.
+
+
+---
+
+## 14. Phase 6 outcome (tide)
+
+Full detail in `docs/tide.md`.
+
+- **Open-Meteo's modelled tide validated** against the Fremantle gauge (UHSLC #175), 2023-24, 13,090 h: **r = 0.977, 5 cm RMS, 0.97 amplitude ratio**. Excellent for the ~9.5 days it covers. Not replaced.
+- **EOT20 / FES via pyTMD rejected** - scipy + netCDF4 + GB of grids, not maintainable in HA Core (would need an add-on).
+- **Harmonic fit to Open-Meteo's own short series rejected** - overfits, and the series carries a large non-tidal component.
+- **Built `tide_harmonic.py`** - 21 constituents from a least-squares fit to 6 yr (46,093 h) of the Fremantle gauge, numpy-free. Held-out 2025 RMS 151 mm (= the non-tidal floor). One station covers all Perth metro. `core.build_forecast` uses it past the modelled-tide horizon and as a full fallback, offset to join continuously. **Tide scoring + high/low markers now span the whole 14-day forecast** (was ~9). Confidence unchanged.
+- Config: options -> Tide station (Auto / Fremantle / Off).
+- `tools/derive_tide_constituents.py` reproduces the fit.
+
+### Model changes
+
+- `LocationConfig.tide_station: str | None`.

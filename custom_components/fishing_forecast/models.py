@@ -115,6 +115,9 @@ class LocationConfig:
     timezone: str = "Australia/Perth"
     # Ground elevation (m) at the land coordinate; used for sun/moon rise-set refraction.
     elevation_m: float = 0.0
+    # Harmonic tide station key (e.g. "fremantle") used to extend tide scoring past
+    # the modelled-tide horizon. None => auto-pick the nearest; "none" => disable.
+    tide_station: str | None = None
 
     # Location-specific swell tuning (metres). None => use ScoringConfig defaults.
     ideal_swell_min: float | None = None

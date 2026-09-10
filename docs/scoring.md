@@ -221,6 +221,8 @@ prominence (`tide.min_prominence_m`, default 0.05 m) and a minimum spacing
 (`tide.min_extreme_spacing_h`, default 4 h) and returns `state=None` (→ component
 `None`) when it can't decide.
 
+**Phase 6:** past Open-Meteo's ~9.5-day tide horizon (and when marine is down entirely), a numpy-free harmonic model (`tide_harmonic.py`, Fremantle constituents from 6 yr of gauge data) fills the series so tide scoring covers the full 14 days. Astronomical only, offset to join the last real value. See `docs/tide.md`.
+
 ---
 
 ## 6. Solunar

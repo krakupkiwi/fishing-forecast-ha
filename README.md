@@ -7,7 +7,7 @@ A Home Assistant custom integration + Lovelace card that predicts the best
 First target location: **Mindarie, Western Australia**. The design supports multiple
 configurable locations (Two Rocks, Lancelin, Hillarys, North Mole, Fremantle, …).
 
-> **Status: Phases 1–5 complete.** The integration installs from the UI, produces
+> **Status: all six phases complete.** The integration installs from the UI, produces
 > hour-by-hour scores for the next 1–2 weeks, exposes sensors + a `fishing_forecast/hourly`
 > websocket, and ships an auto-registering Lovelace card (next-best session,
 > coloured day strip, best-window list, full/outlook boundary, tap-through
@@ -74,7 +74,9 @@ stored API fixtures in `tests/fixtures/`.
 4. ✅ **Phase 4** — Lovelace card (`docs/card.md`)
 5. ✅ **Phase 5** — fishing-style profiles, historical backtest tool, first calibration
    pass, feedback service (`docs/calibration.md`, `docs/fishing-knowledge.md`)
-6. **Phase 6** — tide upgrade (EOT20 / official source), if demonstrably better
+6. ✅ **Phase 6** — tide investigation (`docs/tide.md`): Open-Meteo's modelled tide
+   validated (r = 0.98 vs the Fremantle gauge), EOT20 rejected as too heavy; added a
+   numpy-free harmonic model so tide scoring covers the full 14 days
 
 ## Fishing style
 
