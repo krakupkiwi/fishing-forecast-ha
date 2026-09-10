@@ -1,141 +1,111 @@
-# Fishing Forecast for Home Assistant
+# 🎣 Fishing Forecast for Home Assistant
 
-A Home Assistant custom integration + Lovelace card that predicts the best
-**land-based** fishing days and the best **2–3 hour fishing windows** for the next
-7–16 days, using free, no-key data sources.
+Know which days — and which two-to-three-hour windows — are worth taking the rod
+out from the shore.
 
-First target location: **Mindarie, Western Australia**. The design supports multiple
-configurable locations (Two Rocks, Lancelin, Hillarys, North Mole, Fremantle, …).
+Fishing Forecast rates every hour for the next 1–2 weeks from the conditions that
+matter for **land-based** fishing: wind, swell, tide, sun and moon, air pressure
+and rain. It finds each day's best session, highlights the standout day, and puts
+it all on a dashboard card.
 
-> **Status: all six phases complete.** The integration installs from the UI, produces
-> hour-by-hour scores for the next 1–2 weeks, exposes sensors + a `fishing_forecast/hourly`
-> websocket, and ships an auto-registering Lovelace card (next-best session,
-> coloured day strip, best-window list, full/outlook boundary, tap-through
-> day-detail chart). The forecast is shaped by a **fishing-style profile**
-> (calm water / beach sport / rock snapper / marina). A historical-backtest tool
-> and a `log_session` feedback service support ongoing calibration. Scoring core:
-> 114 tests. See [`docs/card.md`](docs/card.md),
-> [`docs/calibration.md`](docs/calibration.md),
-> [`docs/fishing-knowledge.md`](docs/fishing-knowledge.md),
-> [`docs/scoring.md`](docs/scoring.md), [`docs/research.md`](docs/research.md),
-> [`docs/architecture.md`](docs/architecture.md).
+Tuned for the Perth metro coast (first location: **Mindarie, WA**), but it works
+anywhere you can give it a latitude and longitude.
 
-## How it works
+![The Fishing Forecast card](https://raw.githubusercontent.com/krakupkiwi/fishing-forecast-ha/main/screenshots/card-overview.png)
 
-| Input | Source | Cost |
-|---|---|---|
-| Wind, gusts, rain, pressure, cloud, sun times | [Open-Meteo Weather API](https://open-meteo.com/en/docs) (`best_match`, 16 days) | free, no key |
-| Waves, swell (height / period / direction), SST, currents | [Open-Meteo Marine API](https://open-meteo.com/en/docs/marine-weather-api) (`best_match` ~9.5 days + `ncep_gfswave025` to 16 days) | free, no key |
-| Modelled tide (`sea_level_height_msl`) | Open-Meteo Marine (`best_match`, ~9.5 days) | free, no key |
-| Sun / moon rise, set, transit; moon phase & illumination; solunar major/minor periods | Local calculation via [`ephem`](https://pypi.org/project/ephem/) | free, offline |
+## What you get
 
-A weighted hour-by-hour score (0–100) is computed for every forecast hour, then a
-rolling window finds each day's best session. Days with modelled tide + fine marine
-data are marked **full**; longer-range days are marked **outlook** and never imply
-marine precision they don't have.
+- **A next-best-day headline** — the top day in range with its best window, a
+  0–100 rating, and the reasons behind it (offshore wind, solunar period, clean
+  swell…).
+- **A score for every day** at a glance, with the best day starred.
+- **The best 2–3 hour window for each day**, so you know *when* to go, not just
+  whether.
+- **Tap any day** for an hourly chart: the score curve, wind, solunar feeding
+  periods, sunrise/sunset, and tide highs and lows with their times.
+- **Sensors** for the best day and next window — use them in automations and
+  notifications.
+- **Fishing-style profiles** — tell it what you target and the scoring adapts.
 
-See [`docs/scoring.md`](docs/scoring.md) for every constant and
-[`docs/architecture.md`](docs/architecture.md) for module boundaries.
+Everything runs on free, no-key data from [Open-Meteo](https://open-meteo.com)
+plus offline sun/moon calculations. No account, no API key.
+
+## Screenshots
+
+| Best windows per day | Tap a day for detail |
+|---|---|
+| ![Best windows list](https://raw.githubusercontent.com/krakupkiwi/fishing-forecast-ha/main/screenshots/card-best-windows.png) | ![Hourly day-detail chart](https://raw.githubusercontent.com/krakupkiwi/fishing-forecast-ha/main/screenshots/card-day-detail.png) |
 
 ## Install
 
-### HACS (custom repository)
+### HACS
 
-1. HACS → ⋮ → **Custom repositories**. Add
-   `https://github.com/krakupkiwi/fishing-forecast-ha`, category **Integration**.
-2. Find **Fishing Forecast** in HACS, **Download**, then **restart Home Assistant**.
-3. **Settings → Devices & Services → Add Integration → Fishing Forecast** and
-   fill in the location.
-4. The Lovelace card is served automatically — just add
-   `type: custom:fishing-forecast-card` to a dashboard (see [`docs/card.md`](docs/card.md)).
+1. HACS → **⋮** → **Custom repositories**. Add
+   `https://github.com/krakupkiwi/fishing-forecast-ha` with category
+   **Integration**.
+2. Search HACS for **Fishing Forecast**, **Download** it, then **restart Home
+   Assistant**.
+3. **Settings → Devices & Services → Add Integration → Fishing Forecast**. Enter
+   your location and pick a fishing style.
 
 ### Manual
 
-Copy `custom_components/fishing_forecast/` into your Home Assistant `config/custom_components/`
-directory, restart, then add the integration as in step 3 above.
+Copy `custom_components/fishing_forecast/` into your `config/custom_components/`
+folder, restart Home Assistant, then add the integration as in step 3 above.
 
-`ephem` (the only dependency) is installed automatically on first setup.
+## Add the card
 
-## Repository layout
+The card ships with the integration and registers itself — no resource setup
+needed. Add it to any dashboard:
 
-```
-custom_components/fishing_forecast/
-  api/           Open-Meteo clients + JSON→dataclass parsing
-  astronomy/     ephem wrapper + solunar period calculation
-  scoring/       pure scoring functions, rolling windows, daily summaries
-  frontend/      fishing-forecast-card.js  (the Lovelace card)
-  models.py      typed dataclasses (the internal data model)
-  core.py        build_forecast(location, payloads, cfg) -> ForecastBundle
-  coordinator.py / config_flow.py / sensor.py / websocket.py / …  HA surface
-docs/            research.md, scoring.md, architecture.md, card.md, project-spec.md
-tests/           core suite + integration/ (HA, Linux only) + Open-Meteo fixtures
+```yaml
+type: custom:fishing-forecast-card
+entity: sensor.mindarie_best_fishing_day
 ```
 
-## Development
-
-```bash
-python -m venv .venv && . .venv/bin/activate      # or .venv\Scripts\activate on Windows
-pip install -e ".[dev]"                            # add ",ha" for the integration tests (Linux/macOS)
-ruff check . && ruff format --check .
-mypy
-pytest                                             # core suite; skips tests/integration/ without HA
-```
-
-The scoring core (`models.py`, `util.py`, `core.py`, `scoring/`, `astronomy/`,
-`api/open_meteo_*`) imports nothing from Home Assistant and is tested against
-stored API fixtures in `tests/fixtures/`.
-
-## Roadmap
-
-1. ✅ **Phase 1** — research & API validation (`docs/research.md`)
-2. ✅ **Phase 2** — framework-independent models + scoring engine + tests
-3. ✅ **Phase 3** — Home Assistant integration (config flow, coordinator, sensors, diagnostics)
-4. ✅ **Phase 4** — Lovelace card (`docs/card.md`)
-5. ✅ **Phase 5** — fishing-style profiles, historical backtest tool, first calibration
-   pass, feedback service (`docs/calibration.md`, `docs/fishing-knowledge.md`)
-6. ✅ **Phase 6** — tide investigation (`docs/tide.md`): Open-Meteo's modelled tide
-   validated (r = 0.98 vs the Fremantle gauge), EOT20 rejected as too heavy; added a
-   numpy-free harmonic model so tide scoring covers the full 14 days
+Use the **Best fishing day** sensor for your location. Card options (title, how
+many window rows to show before "show all", chart hours) are in
+[`docs/card.md`](docs/card.md).
 
 ## Fishing style
 
-The forecast is reshaped by what you target — set this in the config flow, change
-it any time in the integration's options:
+Pick this when you add the integration; change it any time in its options. It
+reshapes how much wind, swell, tide and darkness count.
 
-| Profile | For |
+| Profile | Target |
 |---|---|
-| `calm_water` | herring, whiting, squid, garfish — calm, clean water |
-| `beach_sport` *(default)* | tailor, Australian salmon — some wash, dawn/dusk, fronts |
-| `rock_snapper` | pink snapper, mulloway off the rock walls — swell, after storms |
-| `estuary_marina` | mulloway / bream inside the marina — run-in tide, night |
+| **Calm water** | herring, whiting, squid, garfish — calm, clean water |
+| **Beach sport** *(default)* | tailor, Australian salmon — some wash, dawn/dusk, weather fronts |
+| **Rock wall / groyne** | pink snapper, mulloway off the walls — swell, after storms |
+| **Estuary / marina** | mulloway, bream inside the marina — run-in tide, night |
 
-`python tools/backtest.py --start 2024-01-01 --end 2025-08-31 --profile beach_sport`
-runs the engine over the Open-Meteo historical archive to sanity-check the model.
-`docs/calibration.md` has the findings.
+## Good to know
 
-### What Phase 2 delivered
+- Days inside the modelled-tide horizon (~9 days) are marked **full forecast**.
+  Further out is **outlook** and shown as less certain — it never implies marine
+  precision it doesn't have.
+- The modelled tide is validated against the Fremantle gauge (r = 0.98) but is
+  **not** an official tide table.
+- The 0–100 score **ranks the days against each other**. It is not a probability
+  of catching fish.
 
-`custom_components/fishing_forecast/` (all importable with **no Home Assistant**):
+## Under the hood
 
-- `models.py` — frozen dataclasses for every input and output
-- `util.py` — angle math, breakpoint interpolation, timezone conversion
-- `api/open_meteo_weather.py`, `api/open_meteo_marine.py` — JSON → typed rows,
-  including the `best_match` + `ncep_gfswave025` marine merge
-- `astronomy/ephemeris.py` — `ephem` wrapper (sun/moon events, transits, phase)
-- `astronomy/solunar.py` — major/minor feeding periods
-- `scoring/` — `wind`, `swell`, `tide` (extrema detection + score), `solunar`,
-  `sunlight`, `rain`, `pressure`, the weight `engine`, and rolling `windows` +
-  daily summaries
-- `core.py` — `build_forecast(location, payloads, cfg) -> ForecastBundle`, the
-  single entry point the Phase 3 coordinator will call
+Design notes, every scoring constant, and the calibration work live in
+[`docs/`](docs/): [architecture](docs/architecture.md) ·
+[scoring](docs/scoring.md) · [research](docs/research.md) ·
+[calibration](docs/calibration.md) · [tide](docs/tide.md) ·
+[local fishing knowledge](docs/fishing-knowledge.md).
 
-## Data licence / attribution
+The scoring core imports nothing from Home Assistant and is tested against stored
+API fixtures. To work on it: `pip install -e ".[dev]"`, then `ruff check .`,
+`mypy`, and `pytest`. Integration tests need Linux or macOS.
 
-Weather & marine data © Open-Meteo (CC-BY 4.0), derived from Météo-France, NOAA/NCEP,
-DWD and ECMWF models. Non-commercial use, < 10 000 API calls/day. This project is not
-affiliated with Open-Meteo or any weather service. Modelled tide is **not** an
-official tide table.
+## Credits & licence
 
-## Licence
+Weather and marine data © [Open-Meteo](https://open-meteo.com) (CC-BY 4.0),
+derived from Météo-France, NOAA/NCEP, DWD and ECMWF models. Sun and moon
+positions via [ephem](https://pypi.org/project/ephem/). This project is not
+affiliated with Open-Meteo or any weather service.
 
 MIT — see [`LICENSE`](LICENSE).
