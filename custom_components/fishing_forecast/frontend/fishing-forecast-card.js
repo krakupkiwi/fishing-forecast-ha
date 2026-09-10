@@ -11,15 +11,27 @@
  * Plain custom element, no build step. Written to run equally as an ES module or
  * a classic <script> (no import/export) so `fishing-forecast-loader.js` can pull
  * it in as a classic script on browsers where HA's dynamic import() of the card
- * module leaves the element unregistered (seen on Firefox). Guards against
- * defining itself twice.
+ * module leaves the element unregistered (seen on Firefox).
+ *
+ * The whole file is wrapped in an IIFE so it is safe to evaluate more than once
+ * in the same scope. On a page the card can arrive several ways at once — HA's
+ * module import, the loader's classic <script>, a leftover manual dashboard
+ * resource — and a bare top-level `class`/`const` throws "redeclaration of let
+ * FishingForecastCard" on the second evaluation. That is a parse-time error, so
+ * it fires before any `customElements.get` guard and also kills the loader's
+ * retry (each retry is a fresh <script> that never gets past the class). Inside
+ * the IIFE nothing leaks to global scope and the early return makes re-entry a
+ * cheap no-op.
  *
  * Rendering: real DOM nodes only — no innerHTML string assembly, no outerHTML
  * round-trip of the SVG chart. The card re-renders only when the entity's data,
  * the open day, or the "show all" toggle actually change, not on every `hass`.
  */
 
-const CARD_VERSION = "0.2.0";
+(function () {
+if (customElements.get("fishing-forecast-card")) return;
+
+const CARD_VERSION = "0.2.1";
 
 const RATING_CLASS = {
   exceptional: "r-exceptional",
@@ -832,24 +844,23 @@ const STYLE = `
   .day.r-unknown .d-bar { background: var(--divider-color); }
 `;
 
-// The card may be pulled in twice (module + classic script via the loader, or a
-// leftover manual resource). Only define once.
-if (!customElements.get("fishing-forecast-card")) {
-  customElements.define("fishing-forecast-card", FishingForecastCard);
+// The early return at the top of the IIFE already guarantees the element is not
+// yet defined, so no second guard is needed here.
+customElements.define("fishing-forecast-card", FishingForecastCard);
 
-  window.customCards = window.customCards || [];
-  window.customCards.push({
-    type: "fishing-forecast-card",
-    name: "Fishing Forecast Card",
-    description: "Best land-based fishing days and 2–3 h windows for the next 1–2 weeks.",
-    preview: false,
-    documentation: "https://github.com/krakupkiwi/fishing-forecast-ha",
-  });
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "fishing-forecast-card",
+  name: "Fishing Forecast Card",
+  description: "Best land-based fishing days and 2–3 h windows for the next 1–2 weeks.",
+  preview: false,
+  documentation: "https://github.com/krakupkiwi/fishing-forecast-ha",
+});
 
-  // eslint-disable-next-line no-console
-  console.info(
-    `%c fishing-forecast-card %c v${CARD_VERSION} `,
-    "background:#03a9f4;color:#fff;border-radius:3px 0 0 3px;padding:1px 4px",
-    "background:#555;color:#fff;border-radius:0 3px 3px 0;padding:1px 4px"
-  );
-}
+// eslint-disable-next-line no-console
+console.info(
+  `%c fishing-forecast-card %c v${CARD_VERSION} `,
+  "background:#03a9f4;color:#fff;border-radius:3px 0 0 3px;padding:1px 4px",
+  "background:#555;color:#fff;border-radius:0 3px 3px 0;padding:1px 4px"
+);
+})();

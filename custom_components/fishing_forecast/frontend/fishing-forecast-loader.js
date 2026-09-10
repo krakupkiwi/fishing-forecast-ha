@@ -13,7 +13,7 @@
  * classic script and guards against defining itself twice.
  */
 
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.2.1";
 const CARD_SRC = "/fishing_forecast/fishing-forecast-card.js";
 const TAG = "fishing-forecast-card";
 const MAX_ATTEMPTS = 3;

@@ -11,5 +11,5 @@
   "issue_tracker": "https://github.com/krakupkiwi/fishing-forecast-ha/issues",
   "loggers": [],
   "requirements": ["ephem==4.2.1"],
-  "version": "0.2.0"
+  "version": "0.2.1"
 }
