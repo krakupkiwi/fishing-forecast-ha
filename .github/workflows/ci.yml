@@ -60,3 +60,4 @@ jobs:
         with:
           node-version: "22"
       - run: node --check custom_components/fishing_forecast/frontend/fishing-forecast-card.js
+      - run: node --check custom_components/fishing_forecast/frontend/fishing-forecast-loader.js

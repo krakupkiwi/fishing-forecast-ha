@@ -41,12 +41,20 @@ async def test_setup_creates_sensors(hass: HomeAssistant, config_entry, mock_ope
 
 
 async def test_card_is_served(hass: HomeAssistant, config_entry, mock_open_meteo, hass_client):
-    from custom_components.fishing_forecast import CARD_URL
+    from custom_components.fishing_forecast import CARD_URL, LOADER_URL
 
     await setup_integration(hass, config_entry)
-    resp = await (await hass_client()).get(CARD_URL)
+    client = await hass_client()
+
+    resp = await client.get(CARD_URL)
     assert resp.status == 200
     assert 'customElements.define("fishing-forecast-card"' in await resp.text()
+
+    # The loader (what HA actually imports) is served and pulls in the card as a
+    # classic <script> — the workaround for Firefox's broken import() of the card.
+    loader = await client.get(LOADER_URL)
+    assert loader.status == 200
+    assert "fishing-forecast-card.js" in await loader.text()
 
 
 async def test_unload(hass: HomeAssistant, config_entry, mock_open_meteo) -> None:

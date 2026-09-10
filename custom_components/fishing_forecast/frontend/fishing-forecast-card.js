@@ -4,15 +4,22 @@
  *   type: custom:fishing-forecast-card
  *   entity: sensor.mindarie_best_fishing_day
  *
- * Reads the daily summary from the entity's attributes (`days`, `best_*`,
- * `health`, `entry_id`) and pulls the full hourly series on demand through the
- * `fishing_forecast/hourly` websocket command when a day is opened.
+ * Reads the daily summary from the entity's attributes (`days`, `health`,
+ * `entry_id`, `friendly_name`) and pulls the full hourly series on demand through
+ * the `fishing_forecast/hourly` websocket command when a day is opened.
  *
- * Plain custom element, no build step — drop into `config/www/` and add a
- * Lovelace resource.
+ * Plain custom element, no build step. Written to run equally as an ES module or
+ * a classic <script> (no import/export) so `fishing-forecast-loader.js` can pull
+ * it in as a classic script on browsers where HA's dynamic import() of the card
+ * module leaves the element unregistered (seen on Firefox). Guards against
+ * defining itself twice.
+ *
+ * Rendering: real DOM nodes only — no innerHTML string assembly, no outerHTML
+ * round-trip of the SVG chart. The card re-renders only when the entity's data,
+ * the open day, or the "show all" toggle actually change, not on every `hass`.
  */
 
-const CARD_VERSION = "0.1.1";
+const CARD_VERSION = "0.2.0";
 
 const RATING_CLASS = {
   exceptional: "r-exceptional",
@@ -34,13 +41,56 @@ const RATING_LABEL = {
   unknown: "No data",
 };
 
-const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DAY_INITIAL = ["S", "M", "T", "W", "T", "F", "S"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const svgNS = "http://www.w3.org/2000/svg";
+const SVG_NS = "http://www.w3.org/2000/svg";
 
-function parseISO(s) {
-  return s ? new Date(s) : null;
+// ---- tiny DOM builders ---------------------------------------------------
+
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "text") el.textContent = v;
+      else if (k === "dataset") Object.assign(el.dataset, v);
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : String(v));
+    }
+  }
+  appendKids(el, kids);
+  return el;
+}
+
+function svgEl(tag, attrs, ...kids) {
+  const el = document.createElementNS(SVG_NS, tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === null || v === undefined || v === false) continue;
+      if (k === "text") el.textContent = v;
+      else el.setAttribute(k, String(v)); // setAttribute keeps case: viewBox, preserveAspectRatio
+    }
+  }
+  appendKids(el, kids);
+  return el;
+}
+
+function appendKids(el, kids) {
+  for (const kid of kids) {
+    if (kid === null || kid === undefined || kid === false) continue;
+    if (Array.isArray(kid)) appendKids(el, kid);
+    else el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+}
+
+// ---- formatting --------------------------------------------------------
+
+function parseISO(str) {
+  return str ? new Date(str) : null;
 }
 
 function localDate(dateStr) {
@@ -49,24 +99,31 @@ function localDate(dateStr) {
   return new Date(y, m - 1, d);
 }
 
-function dayLabel(dateStr) {
-  const d = localDate(dateStr);
-  return DAY_NAMES[d.getDay()];
+function shortDay(dateStr) {
+  return DAY_SHORT[localDate(dateStr).getDay()];
 }
 
-function longDayLabel(dateStr) {
+function initialDay(dateStr) {
+  return DAY_INITIAL[localDate(dateStr).getDay()];
+}
+
+function longDay(dateStr) {
   const d = localDate(dateStr);
-  const full = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  return `${full[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  return `${DAY_LONG[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+function dayAndDate(dateStr) {
+  const d = localDate(dateStr);
+  return `${DAY_SHORT[d.getDay()]} ${d.getDate()}`;
 }
 
 function fmtClock(date) {
   if (!date) return "";
-  let h = date.getHours();
-  const m = date.getMinutes().toString().padStart(2, "0");
-  const ampm = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  return `${h}:${m} ${ampm}`;
+  let hr = date.getHours();
+  const min = date.getMinutes().toString().padStart(2, "0");
+  const ampm = hr >= 12 ? "PM" : "AM";
+  hr = hr % 12 || 12;
+  return `${hr}:${min} ${ampm}`;
 }
 
 function fmtRange(startISO, endISO) {
@@ -76,17 +133,18 @@ function fmtRange(startISO, endISO) {
   return `${fmtClock(s)} – ${fmtClock(e)}`;
 }
 
-function round(v, d = 0) {
-  if (v === null || v === undefined) return null;
-  const f = 10 ** d;
+function round(v, digits = 0) {
+  if (v === null || v === undefined || Number.isNaN(v)) return null;
+  const f = 10 ** digits;
   return Math.round(v * f) / f;
 }
 
 function compass(deg) {
   if (deg === null || deg === undefined) return "";
-  const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  return dirs[Math.round(deg / 45) % 8];
+  return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(deg / 45) % 8];
 }
+
+// ---- element ----------------------------------------------------------
 
 class FishingForecastCard extends HTMLElement {
   constructor() {
@@ -95,14 +153,19 @@ class FishingForecastCard extends HTMLElement {
     this._config = {};
     this._hass = null;
     this._openDate = null;
+    this._showAll = false;
     this._hourlyCache = null;
     this._hourlyPromise = null;
+    this._hourlyError = null;
     this._built = false;
+    this._sig = null;
   }
 
   setConfig(config) {
-    if (!config.entity) {
-      throw new Error("fishing-forecast-card: `entity` is required (the …_best_fishing_day sensor)");
+    if (!config || !config.entity) {
+      throw new Error(
+        "fishing-forecast-card: `entity` is required (the …_best_fishing_day sensor)"
+      );
     }
     this._config = {
       collapsed_days: 7,
@@ -110,12 +173,15 @@ class FishingForecastCard extends HTMLElement {
       detail_end_hour: 22,
       ...config,
     };
-    this._built = false;
+    this._sig = null;
+    if (this._built) this._render();
   }
 
   set hass(hass) {
     this._hass = hass;
     if (!this._built) this._build();
+    const sig = this._signature();
+    if (sig === this._sig) return;
     this._render();
   }
 
@@ -124,7 +190,7 @@ class FishingForecastCard extends HTMLElement {
   }
 
   static getStubConfig(hass) {
-    const match = Object.keys(hass.states).find((e) => e.endsWith("_best_fishing_day"));
+    const match = Object.keys(hass.states || {}).find((e) => e.endsWith("_best_fishing_day"));
     return { entity: match || "sensor.fishing_best_fishing_day" };
   }
 
@@ -136,12 +202,22 @@ class FishingForecastCard extends HTMLElement {
     return this._state ? this._state.attributes : {};
   }
 
-  // ---- data --------------------------------------------------------------
+  _signature() {
+    const st = this._state;
+    return [
+      st ? st.last_updated || st.last_changed || st.state : "none",
+      this._openDate,
+      this._showAll,
+      this._hourlyCache ? "h" : "",
+      this._hourlyError || "",
+    ].join("|");
+  }
 
-  async _loadHourly() {
+  // ---- data -----------------------------------------------------------
+
+  _loadHourly() {
     const entryId = this._attrs.entry_id;
-    if (!entryId || !this._hass) return;
-    if (this._hourlyPromise) return this._hourlyPromise;
+    if (!entryId || !this._hass || this._hourlyPromise) return;
     this._hourlyPromise = this._hass
       .callWS({ type: "fishing_forecast/hourly", entry_id: entryId })
       .then((data) => {
@@ -156,469 +232,608 @@ class FishingForecastCard extends HTMLElement {
         console.error("fishing-forecast-card: hourly fetch failed", err);
         this._render();
       });
-    return this._hourlyPromise;
   }
 
   _toggleDay(dateStr) {
-    if (this._openDate === dateStr) {
-      this._openDate = null;
-    } else {
-      this._openDate = dateStr;
-      if (!this._hourlyCache) {
-        this._hourlyError = null;
-        this._loadHourly();
-      }
+    this._openDate = this._openDate === dateStr ? null : dateStr;
+    if (this._openDate && !this._hourlyCache) {
+      this._hourlyError = null;
+      this._loadHourly();
     }
     this._render();
-  }
-
-  // ---- rendering --------------------------------------------------------
-
-  _build() {
-    this.shadowRoot.innerHTML = `
-      <style>${STYLE}</style>
-      <ha-card>
-        <div class="root"></div>
-      </ha-card>
-    `;
-    this._root = this.shadowRoot.querySelector(".root");
-    this._built = true;
-  }
-
-  _render() {
-    if (!this._root) return;
-    const st = this._state;
-    if (!st) {
-      this._root.innerHTML = `<div class="warn">Entity <code>${
-        this._config.entity || "?"
-      }</code> not found.</div>`;
-      return;
-    }
-    const a = this._attrs;
-    const days = Array.isArray(a.days) ? a.days : [];
-    const name = a.friendly_name ? a.friendly_name.replace(/\s*Best fishing day$/i, "") : "";
-
-    this._root.innerHTML = `
-      <div class="head">
-        <div class="title"><ha-icon icon="mdi:fish"></ha-icon>${this._config.title || "Fishing Forecast"}</div>
-        <div class="loc">${name}</div>
-      </div>
-      ${this._nextBest(days)}
-      ${this._strip(days)}
-      ${this._windows(days)}
-      ${this._openDate ? this._detail(this._openDate) : ""}
-      ${this._healthLine(a.health)}
-    `;
-
-    this._root.querySelectorAll("[data-day]").forEach((el) => {
-      el.addEventListener("click", () => this._toggleDay(el.getAttribute("data-day")));
-    });
-  }
-
-  _nextBest(days) {
-    const best = days.reduce(
-      (acc, d) => (d.score !== null && (!acc || d.score > acc.score) ? d : acc),
-      null
-    );
-    if (!best) return `<div class="panel muted">No scoreable days in range.</div>`;
-    const w = best.best_window;
-    const cls = RATING_CLASS[best.rating] || "r-unknown";
-    const chips = (best.highlights || [])
-      .slice(0, 4)
-      .map((h) => `<span class="chip">${h}</span>`)
-      .join("");
-    return `
-      <div class="panel next ${cls}" data-day="${best.date}">
-        <div class="next-top">
-          <div>
-            <div class="next-when">${longDayLabel(best.date)}</div>
-            <div class="next-window">${w ? fmtRange(w.start, w.end) : "—"}</div>
-          </div>
-          <div class="next-score">
-            <span class="score">${round(best.score)}</span><span class="outof">/100</span>
-            <div class="rating">${RATING_LABEL[best.rating] || ""}${
-              best.confidence === "outlook" ? " · outlook" : ""
-            }</div>
-          </div>
-        </div>
-        ${chips ? `<div class="chips">${chips}</div>` : ""}
-      </div>
-    `;
   }
 
   _bestIndex(days) {
     let bi = -1;
     days.forEach((d, i) => {
-      if (d.score !== null && (bi < 0 || d.score > days[bi].score)) bi = i;
+      if (d.score !== null && d.score !== undefined && (bi < 0 || d.score > days[bi].score)) bi = i;
     });
     return bi;
   }
 
-  _visibleCount(days) {
-    return this._showAll ? days.length : Math.min(this._config.collapsed_days, days.length);
+  _visibleWindowCount(days) {
+    if (this._showAll) return days.length;
+    const base = Math.min(this._config.collapsed_days, days.length);
+    // Keep the starred best day in the list even if it's past the fold.
+    const bi = this._bestIndex(days);
+    return bi >= base ? bi + 1 : base;
   }
 
-  _strip(days) {
-    const bi = this._bestIndex(days);
-    const shown = days.slice(0, this._visibleCount(days));
-    const max = Math.max(60, ...shown.map((d) => d.score || 0));
-    const firstOutlook = shown.findIndex((d) => d.confidence === "outlook");
+  // ---- rendering -----------------------------------------------------
 
-    const cells = shown
-      .map((d, i) => {
-        const h = d.score !== null ? Math.max(6, Math.round((d.score / max) * 44)) : 4;
-        const cls = RATING_CLASS[d.rating] || "r-unknown";
-        const boundary = i === firstOutlook && firstOutlook > 0 ? " boundary" : "";
-        const star = i === bi ? '<span class="star">★</span>' : "";
-        return `
-          <button class="cell${boundary}${i === bi ? " is-best" : ""}" data-day="${d.date}" title="${longDayLabel(d.date)}">
-            ${star}
-            <span class="bar-wrap"><span class="bar ${cls}" style="height:${h}px"></span></span>
-            <span class="cell-score ${cls}">${d.score === null ? "–" : round(d.score)}</span>
-            <span class="cell-day">${dayLabel(d.date)}</span>
-          </button>`;
-      })
-      .join("");
-
-    const outlookHint =
-      firstOutlook > 0
-        ? `<div class="legend"><span class="dot full"></span>full forecast<span class="dot outlook"></span>outlook from ${dayLabel(
-            shown[firstOutlook].date
-          )} ${localDate(shown[firstOutlook].date).getDate()}</div>`
-        : "";
-    const more =
-      days.length > this._config.collapsed_days
-        ? `<button class="more">${this._showAll ? "Show less" : `Show all ${days.length} days`}</button>`
-        : "";
-
-    return `
-      <div class="strip">
-        <div class="cells">${cells}</div>
-        ${outlookHint}
-        ${more}
-      </div>
-    `;
+  _build() {
+    this.shadowRoot.replaceChildren(
+      h("style", { text: STYLE }),
+      h("ha-card", null, (this._root = h("div", { class: "root" })))
+    );
+    this._built = true;
   }
 
-  _windows(days) {
-    const bi = this._bestIndex(days);
-    const shown = days.slice(0, this._visibleCount(days));
+  _render() {
+    if (!this._root) return;
+    this._sig = this._signature();
+
+    const st = this._state;
+    if (!st) {
+      this._root.replaceChildren(
+        h(
+          "div",
+          { class: "warn" },
+          h("ha-icon", { icon: "mdi:alert-circle-outline" }),
+          h("span", null, "Entity ", h("code", { text: this._config.entity || "?" }), " not found.")
+        )
+      );
+      return;
+    }
+
+    const a = this._attrs;
+    const days = Array.isArray(a.days) ? a.days : [];
+    const nodes = [this._header(a)];
+
+    if (!days.length) {
+      nodes.push(h("div", { class: "msg" }, "No forecast data yet."));
+    } else {
+      const bi = this._bestIndex(days);
+      if (bi < 0) {
+        nodes.push(h("div", { class: "msg" }, "No scoreable days in range."));
+      } else {
+        nodes.push(this._hero(days, bi));
+        nodes.push(this._timeline(days, bi));
+        const windows = this._windows(days, bi);
+        if (windows) nodes.push(windows);
+      }
+      if (this._openDate) nodes.push(this._detail(this._openDate));
+    }
+
+    const health = this._healthNode(a.health);
+    if (health) nodes.push(health);
+
+    this._root.replaceChildren(...nodes);
+  }
+
+  _header(a) {
+    const name = a.friendly_name
+      ? a.friendly_name.replace(/\s*Best fishing day$/i, "").trim()
+      : "";
+    return h(
+      "div",
+      { class: "hdr" },
+      h(
+        "div",
+        { class: "brand" },
+        h("ha-icon", { icon: "mdi:fish" }),
+        h("span", { text: this._config.title || "Fishing Forecast" })
+      ),
+      name ? h("div", { class: "loc", text: name }) : null
+    );
+  }
+
+  _hero(days, bi) {
+    const day = days[bi];
+    const cls = RATING_CLASS[day.rating] || "r-unknown";
+    const w = day.best_window;
+    const isOpen = this._openDate === day.date;
+    const highlights = Array.isArray(day.highlights) ? day.highlights.slice(0, 4) : [];
+
+    const cond =
+      highlights.length > 0
+        ? h(
+            "div",
+            { class: "cond" },
+            highlights.flatMap((t, i) => [
+              i ? h("span", { class: "sep", text: "·" }) : null,
+              document.createTextNode(t),
+            ])
+          )
+        : null;
+
+    return h(
+      "button",
+      {
+        class: `hero ${cls}${isOpen ? " is-open" : ""}`,
+        type: "button",
+        "aria-expanded": String(isOpen),
+        onclick: () => this._toggleDay(day.date),
+      },
+      h("div", { class: "eyebrow", text: "Next best" }),
+      h("div", { class: "when", text: longDay(day.date) }),
+      h("div", { class: "win", text: w ? fmtRange(w.start, w.end) : "No viable window" }),
+      h(
+        "div",
+        { class: "rating" },
+        h("span", { class: "dot" }),
+        h("span", { text: RATING_LABEL[day.rating] || "" }),
+        day.confidence === "outlook" ? h("span", { class: "badge", text: "outlook" }) : null
+      ),
+      h(
+        "div",
+        { class: "score" },
+        h("b", { text: day.score === null ? "–" : round(day.score) }),
+        h("span", { text: "/ 100" })
+      ),
+      cond
+    );
+  }
+
+  _timeline(days, bi) {
+    // The strip is compact enough to always show the full range.
+    const max = Math.max(60, ...days.map((d) => d.score || 0));
+    const firstOutlook = days.findIndex((d) => d.confidence === "outlook");
+
+    const cols = days.map((d, i) => {
+      const cls = RATING_CLASS[d.rating] || "r-unknown";
+      const has = d.score !== null && d.score !== undefined;
+      const barH = has ? Math.max(4, Math.round((d.score / max) * 44)) : 3;
+      const isBest = i === bi;
+      const isOpen = this._openDate === d.date;
+      const boundary = i === firstOutlook && firstOutlook > 0;
+      return h(
+        "button",
+        {
+          class:
+            `day ${cls}` +
+            (isBest ? " is-best" : "") +
+            (isOpen ? " is-open" : "") +
+            (d.confidence === "outlook" ? " outlook" : "") +
+            (boundary ? " boundary" : ""),
+          type: "button",
+          title: longDay(d.date),
+          onclick: () => this._toggleDay(d.date),
+        },
+        isBest ? h("span", { class: "star", text: "★" }) : null,
+        h("span", { class: "d-score", text: has ? round(d.score) : "–" }),
+        h(
+          "span",
+          { class: "d-bar-wrap" },
+          h("span", { class: "d-bar", style: `height:${barH}px` })
+        ),
+        h("span", { class: "d-name", text: initialDay(d.date) }),
+        h("span", { class: "d-date", text: String(localDate(d.date).getDate()) })
+      );
+    });
+
+    const children = [
+      h("div", { class: "tl-h", text: "Score by day" }),
+      h("div", { class: "tl-scroll" }, h("div", { class: "tl-row" }, cols)),
+    ];
+
+    if (firstOutlook > 0) {
+      children.push(
+        h(
+          "div",
+          { class: "tl-note" },
+          h("span", { class: "tick" }),
+          `outlook from ${dayAndDate(days[firstOutlook].date)}`
+        )
+      );
+    }
+
+    return h("div", { class: "tl" }, children);
+  }
+
+  _windows(days, bi) {
+    const shown = days.slice(0, this._visibleWindowCount(days));
     const rows = shown
       .filter((d) => d.best_window)
       .map((d) => {
         const idx = days.indexOf(d);
         const cls = RATING_CLASS[d.rating] || "r-unknown";
         const isBest = idx === bi;
-        return `
-          <button class="wrow ${cls} ${isBest ? "is-best" : ""}" data-day="${d.date}">
-            <span class="wrow-day">${dayLabel(d.date)} ${localDate(d.date).getDate()}</span>
-            <span class="wrow-time">${fmtRange(d.best_window.start, d.best_window.end)}</span>
-            <span class="wrow-score">${round(d.score)}${isBest ? " ★" : ""}</span>
-          </button>`;
-      })
-      .join("");
-    if (!rows) return "";
-    return `<div class="windows"><div class="windows-h">Best windows</div>${rows}</div>`;
+        const isOpen = this._openDate === d.date;
+        return h(
+          "button",
+          {
+            class: `wrow ${cls}${isBest ? " is-best" : ""}${isOpen ? " is-open" : ""}`,
+            type: "button",
+            onclick: () => this._toggleDay(d.date),
+          },
+          h("span", { class: "w-day", text: dayAndDate(d.date) }),
+          h("span", { class: "w-time", text: fmtRange(d.best_window.start, d.best_window.end) }),
+          h("span", {
+            class: "w-score",
+            text: `${round(d.score)}${isBest ? " ★" : ""}`,
+          })
+        );
+      });
+    if (!rows.length) return null;
+
+    const more =
+      this._showAll || shown.length < days.length
+        ? h("button", {
+            class: "more",
+            type: "button",
+            text: this._showAll ? "Show fewer" : `Show all ${days.length} days`,
+            onclick: () => {
+              this._showAll = !this._showAll;
+              this._render();
+            },
+          })
+        : null;
+
+    return h(
+      "div",
+      { class: "win-sec" },
+      h("div", { class: "win-h", text: "Best windows" }),
+      rows,
+      more
+    );
   }
 
   _detail(dateStr) {
     const day = (this._attrs.days || []).find((d) => d.date === dateStr);
-    if (!day) return "";
-    const hourly = this._hourlyCache;
-    let chart;
-    if (hourly) {
-      chart = this._chart(dateStr, hourly);
-    } else if (this._hourlyError) {
-      chart = `<div class="loading">Couldn't load the hourly detail (${this._hourlyError}).</div>`;
-    } else {
-      chart = `<div class="loading">Loading hourly…</div>`;
-    }
+    if (!day) return null;
+    const cls = RATING_CLASS[day.rating] || "r-unknown";
     const w = day.best_window;
-    return `
-      <div class="detail">
-        <div class="detail-head">
-          <span>${longDayLabel(dateStr)}</span>
-          <span class="detail-meta">${
-            w ? `best ${fmtRange(w.start, w.end)} · ${round(day.score)}` : "no viable window"
-          }${day.confidence === "outlook" ? " · outlook" : ""}</span>
-        </div>
-        ${chart}
-      </div>
-    `;
+
+    let body;
+    if (this._hourlyCache) {
+      body = this._chart(dateStr);
+    } else if (this._hourlyError) {
+      body = h("div", {
+        class: "loading",
+        text: `Couldn't load the hourly detail (${this._hourlyError}).`,
+      });
+    } else {
+      body = h("div", { class: "loading", text: "Loading hourly…" });
+    }
+
+    return h(
+      "div",
+      { class: `detail ${cls}` },
+      h(
+        "div",
+        { class: "detail-h" },
+        h("b", { text: longDay(dateStr) }),
+        h("span", {
+          class: "meta",
+          text:
+            (w ? `best ${fmtRange(w.start, w.end)} · ${round(day.score)}` : "no viable window") +
+            (day.confidence === "outlook" ? " · outlook" : ""),
+        })
+      ),
+      body
+    );
   }
 
-  _chart(dateStr, hourly) {
+  _chart(dateStr) {
+    const hourly = this._hourlyCache;
     const start = this._config.detail_start_hour;
     const end = this._config.detail_end_hour;
     const day = localDate(dateStr);
     const inDay = (iso) => {
       const t = new Date(iso);
-      return t.getFullYear() === day.getFullYear() &&
+      return (
+        t.getFullYear() === day.getFullYear() &&
         t.getMonth() === day.getMonth() &&
-        t.getDate() === day.getDate();
+        t.getDate() === day.getDate()
+      );
     };
 
-    const hours = (hourly.hourly || []).filter((h) => {
-      const t = new Date(h.time);
-      return inDay(h.time) && t.getHours() >= start && t.getHours() <= end;
+    const hours = (hourly.hourly || []).filter((row) => {
+      const t = new Date(row.time);
+      return inDay(row.time) && t.getHours() >= start && t.getHours() <= end;
     });
-    if (!hours.length) return `<div class="loading">No hourly detail for this day.</div>`;
+    if (!hours.length) {
+      return h("div", { class: "loading", text: "No hourly detail for this day." });
+    }
 
-    const W = 340;
-    const H = 132;
-    const padL = 22;
-    const padR = 8;
-    const padT = 10;
-    const padB = 18;
+    const W = 480;
+    const H = 150;
+    const padL = 26;
+    const padR = 10;
+    const padT = 12;
+    const padB = 20;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+
     const x = (t) => {
       const d = new Date(t);
       const hr = d.getHours() + d.getMinutes() / 60;
-      return padL + ((hr - start) / (end - start)) * (W - padL - padR);
+      return padL + ((hr - start) / (end - start)) * innerW;
     };
-    const yScore = (s) => padT + (1 - s / 100) * (H - padT - padB);
-    const yWind = (kmh) => padT + (1 - Math.min(kmh, 40) / 40) * (H - padT - padB);
+    const xHour = (hr) => padL + ((hr - start) / (end - start)) * innerW;
+    const yScore = (s) => padT + (1 - s / 100) * innerH;
+    const yWind = (kmh) => padT + (1 - Math.min(kmh, 40) / 40) * innerH;
 
-    const ns = (tag, attrs, kids) => {
-      const el = document.createElementNS(svgNS, tag);
-      for (const k in attrs) el.setAttribute(k, attrs[k]);
-      (kids || []).forEach((c) => el.appendChild(c));
-      return el;
-    };
-
-    const svg = ns("svg", { viewBox: `0 0 ${W} ${H}`, class: "chart", preserveAspectRatio: "none" });
+    const svg = svgEl("svg", {
+      viewBox: `0 0 ${W} ${H}`,
+      class: "chart",
+      preserveAspectRatio: "none",
+      role: "img",
+      "aria-label": `Hourly forecast for ${longDay(dateStr)}`,
+    });
 
     // gridlines
-    [25, 50, 75].forEach((g) =>
-      svg.appendChild(ns("line", { x1: padL, x2: W - padR, y1: yScore(g), y2: yScore(g), class: "grid" }))
-    );
+    for (const g of [25, 50, 75]) {
+      svg.append(
+        svgEl("line", { x1: padL, x2: W - padR, y1: yScore(g), y2: yScore(g), class: "grid" })
+      );
+    }
 
     // solunar bands
-    (hourly.solunar_periods || []).forEach((p) => {
-      const s = new Date(p.start);
-      const e = new Date(p.end);
-      if (!inDay(p.centre) && !inDay(p.start) && !inDay(p.end)) return;
+    for (const p of hourly.solunar_periods || []) {
+      if (!inDay(p.centre) && !inDay(p.start) && !inDay(p.end)) continue;
       const x1 = Math.max(padL, x(p.start));
       const x2 = Math.min(W - padR, x(p.end));
-      if (x2 <= x1) return;
-      svg.appendChild(
-        ns("rect", {
+      if (x2 <= x1) continue;
+      svg.append(
+        svgEl("rect", {
           x: x1,
           y: padT,
           width: x2 - x1,
-          height: H - padT - padB,
+          height: innerH,
           class: p.kind === "major" ? "band major" : "band minor",
         })
       );
-    });
+    }
 
     // sunrise / sunset
     const dayMeta = (this._attrs.days || []).find((d) => d.date === dateStr) || {};
-    ["sunrise", "sunset"].forEach((k) => {
-      const hm = dayMeta[k];
-      if (!hm) return;
+    for (const key of ["sunrise", "sunset"]) {
+      const hm = dayMeta[key];
+      if (!hm) continue;
       const [hh, mm] = hm.split(":").map(Number);
-      if (hh < start || hh > end) return;
-      const px = padL + ((hh + mm / 60 - start) / (end - start)) * (W - padL - padR);
-      svg.appendChild(ns("line", { x1: px, x2: px, y1: padT, y2: H - padB, class: "sun-line" }));
-      svg.appendChild(ns("text", { x: px, y: padT + 8, class: "sun-text" })).textContent =
-        k === "sunrise" ? "☀" : "☾";
-    });
-
-    // score area + line
-    const pts = hours.map((h) => `${x(h.time).toFixed(1)},${yScore(h.score ?? 0).toFixed(1)}`);
-    const area = ns("polygon", {
-      points: `${padL},${H - padB} ${pts.join(" ")} ${W - padR},${H - padB}`,
-      class: "score-area",
-    });
-    svg.appendChild(area);
-    svg.appendChild(ns("polyline", { points: pts.join(" "), class: "score-line" }));
-
-    // wind line
-    const windPts = hours
-      .filter((h) => h.wind_speed_kmh !== null)
-      .map((h) => `${x(h.time).toFixed(1)},${yWind(h.wind_speed_kmh).toFixed(1)}`);
-    if (windPts.length > 1) {
-      svg.appendChild(ns("polyline", { points: windPts.join(" "), class: "wind-line" }));
+      if (hh < start || hh > end) continue;
+      const px = xHour(hh + mm / 60);
+      svg.append(svgEl("line", { x1: px, x2: px, y1: padT, y2: H - padB, class: "sun" }));
+      svg.append(
+        svgEl("text", { x: px, y: padT - 3, class: "sun-t", text: key === "sunrise" ? "☀" : "☾" })
+      );
     }
 
-    // tide extremes — little triangle + time just below the score baseline
-    (hourly.tide_extremes || []).forEach((e) => {
-      if (!inDay(e.time)) return;
+    // score area + line
+    const pts = hours.map(
+      (row) => `${x(row.time).toFixed(1)},${yScore(row.score ?? 0).toFixed(1)}`
+    );
+    svg.append(
+      svgEl("polygon", {
+        points: `${padL},${H - padB} ${pts.join(" ")} ${W - padR},${H - padB}`,
+        class: "area",
+      })
+    );
+    svg.append(svgEl("polyline", { points: pts.join(" "), class: "line" }));
+
+    // wind overlay
+    const windPts = hours
+      .filter((row) => row.wind_speed_kmh !== null && row.wind_speed_kmh !== undefined)
+      .map((row) => `${x(row.time).toFixed(1)},${yWind(row.wind_speed_kmh).toFixed(1)}`);
+    if (windPts.length > 1) {
+      svg.append(svgEl("polyline", { points: windPts.join(" "), class: "wind" }));
+    }
+
+    // tide extremes
+    for (const e of hourly.tide_extremes || []) {
+      if (!inDay(e.time)) continue;
       const t = new Date(e.time);
       const hr = t.getHours() + t.getMinutes() / 60;
-      if (hr < start || hr > end) return;
+      if (hr < start || hr > end) continue;
       const px = x(e.time);
       const y0 = H - padB;
       const tri =
         e.kind === "high"
           ? `${px - 3},${y0} ${px + 3},${y0} ${px},${y0 - 5}`
           : `${px - 3},${y0 - 5} ${px + 3},${y0 - 5} ${px},${y0}`;
-      svg.appendChild(ns("polygon", { points: tri, class: `tide-mark ${e.kind}` }));
-      svg.appendChild(ns("text", { x: px, y: y0 - 8, class: "tide-text" })).textContent = fmtClock(t)
-        .replace(":00", "")
-        .replace(/\s/g, "");
-    });
+      svg.append(svgEl("polygon", { points: tri, class: `tide ${e.kind}` }));
+      svg.append(
+        svgEl("text", {
+          x: px,
+          y: y0 - 8,
+          class: "tide-t",
+          text: fmtClock(t).replace(":00", "").replace(/\s/g, ""),
+        })
+      );
+    }
 
-    // x labels
+    // x axis
     for (let hr = start; hr <= end; hr += 3) {
-      const px = padL + ((hr - start) / (end - start)) * (W - padL - padR);
-      svg.appendChild(ns("text", { x: px, y: H - 4, class: "axis" })).textContent =
-        hr === 12 ? "12p" : hr < 12 ? `${hr}a` : `${hr - 12}p`;
+      svg.append(
+        svgEl("text", {
+          x: xHour(hr),
+          y: H - 5,
+          class: "axis",
+          text: hr === 12 ? "12p" : hr < 12 ? `${hr}a` : `${hr - 12}p`,
+        })
+      );
     }
 
     // stat readout
-    const peakWind = Math.max(...hours.map((h) => h.wind_speed_kmh || 0));
-    const peakHour = hours.reduce((a, b) => ((b.score ?? 0) > (a.score ?? -1) ? b : a), hours[0]);
+    const peakWind = Math.max(...hours.map((row) => row.wind_speed_kmh || 0));
+    const peakHour = hours.reduce(
+      (best, row) => ((row.score ?? 0) > (best.score ?? -1) ? row : best),
+      hours[0]
+    );
     const swell = peakHour.swell_height_m;
-    const wrap = document.createElement("div");
-    wrap.className = "chart-wrap";
-    wrap.appendChild(svg);
-    const stats = document.createElement("div");
-    stats.className = "stats";
-    stats.innerHTML = `
-      <span><ha-icon icon="mdi:weather-windy"></ha-icon> ${round(peakWind)} km/h peak${
-        peakHour.wind_direction_deg !== null ? ` ${compass(peakHour.wind_direction_deg)}` : ""
-      }</span>
-      ${
-        swell !== null && swell !== undefined
-          ? `<span><ha-icon icon="mdi:waves"></ha-icon> ${round(swell, 1)} m${
-              peakHour.swell_period_s ? ` @ ${round(peakHour.swell_period_s)} s` : ""
-            }</span>`
-          : ""
-      }
-      <span class="lg"><i class="k score"></i>score <i class="k wind"></i>wind <i class="k major"></i>major <i class="k minor"></i>minor</span>
-    `;
-    wrap.appendChild(stats);
-    return wrap.outerHTML;
+
+    const stats = h(
+      "div",
+      { class: "stats" },
+      h(
+        "span",
+        null,
+        h("ha-icon", { icon: "mdi:weather-windy" }),
+        ` ${round(peakWind)} km/h peak` +
+          (peakHour.wind_direction_deg !== null && peakHour.wind_direction_deg !== undefined
+            ? ` ${compass(peakHour.wind_direction_deg)}`
+            : "")
+      ),
+      swell !== null && swell !== undefined
+        ? h(
+            "span",
+            null,
+            h("ha-icon", { icon: "mdi:waves" }),
+            ` ${round(swell, 1)} m` +
+              (peakHour.swell_period_s ? ` @ ${round(peakHour.swell_period_s)} s` : "")
+          )
+        : null,
+      h(
+        "span",
+        { class: "legend" },
+        h("i", { class: "k-score", text: "score" }),
+        h("i", { class: "k-wind", text: "wind" })
+      )
+    );
+
+    return h("div", { class: "chart-wrap" }, svg, stats);
   }
 
-  _healthLine(health) {
-    if (!health) return "";
-    const bad = Object.entries(health).filter(([, v]) => v !== "ok");
-    if (!bad.length) return "";
-    const label = { marine_fine: "fine marine", marine_extended: "extended marine" };
-    return `<div class="health"><ha-icon icon="mdi:alert-outline"></ha-icon>${bad
-      .map(([k, v]) => `${label[k] || k} ${v}`)
-      .join(", ")}</div>`;
-  }
-
-  connectedCallback() {
-    this.shadowRoot.addEventListener("click", (ev) => {
-      if (ev.target.closest(".more")) {
-        this._showAll = !this._showAll;
-        this._render();
-      }
-    });
+  _healthNode(health) {
+    if (!health) return null;
+    const bad = Object.entries(health).filter(([, v]) => v && v !== "ok");
+    if (!bad.length) return null;
+    const label = {
+      weather: "weather",
+      marine_fine: "fine marine",
+      marine_extended: "extended marine",
+      astronomy: "astronomy",
+    };
+    return h(
+      "div",
+      { class: "warn" },
+      h("ha-icon", { icon: "mdi:alert-outline" }),
+      h("span", { text: bad.map(([k, v]) => `${label[k] || k} ${v}`).join(", ") })
+    );
   }
 }
 
 const STYLE = `
-  :host { --ffc-radius: 10px; }
-  ha-card { padding: 12px 14px 14px; }
-  .warn, .health { color: var(--warning-color); font-size: 0.85rem; padding: 6px 0; }
-  .health ha-icon, .warn ha-icon { --mdc-icon-size: 16px; margin-right: 4px; vertical-align: -3px; }
-  .head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
-  .title { font-weight: 600; font-size: 1.05rem; display: flex; align-items: center; gap: 6px; }
-  .title ha-icon { --mdc-icon-size: 20px; color: var(--state-icon-color, var(--primary-color)); }
-  .loc { color: var(--secondary-text-color); font-size: 0.9rem; }
+  :host { display: block; }
+  ha-card { padding: 16px; overflow: hidden; }
+  .root { display: flex; flex-direction: column; }
 
-  .panel { border-radius: var(--ffc-radius); padding: 12px; margin-bottom: 12px; }
-  .muted, .panel.muted { color: var(--secondary-text-color); }
+  .hdr { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 1rem; }
+  .brand ha-icon { --mdc-icon-size: 20px; color: var(--state-icon-color, var(--primary-color)); }
+  .loc { color: var(--secondary-text-color); font-size: 0.85rem; text-align: right; }
 
-  .next { border: 1px solid var(--divider-color); position: relative; overflow: hidden; cursor: pointer; }
-  .next:hover { border-color: var(--rc, var(--primary-color)); }
-  .next::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--rc, var(--divider-color)); }
-  .next-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-  .next-when { font-weight: 600; }
-  .next-window { color: var(--secondary-text-color); font-size: 0.92rem; margin-top: 2px; }
-  .next-score { text-align: right; line-height: 1.05; }
-  .next-score .score { font-size: 2rem; font-weight: 700; color: var(--rc, var(--primary-text-color)); }
-  .next-score .outof { color: var(--secondary-text-color); font-size: 0.8rem; }
-  .next-score .rating { font-size: 0.78rem; color: var(--secondary-text-color); margin-top: 2px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-  .chip { font-size: 0.74rem; padding: 2px 8px; border-radius: 999px;
-          background: var(--secondary-background-color); color: var(--primary-text-color); }
+  .msg { color: var(--secondary-text-color); font-size: 0.88rem; padding: 8px 0; }
+  .warn { color: var(--warning-color); font-size: 0.84rem; padding: 8px 0 2px; display: flex; align-items: center; gap: 6px; }
+  .warn ha-icon { --mdc-icon-size: 16px; flex: none; }
+  code { background: var(--secondary-background-color); padding: 1px 4px; border-radius: 4px; }
 
-  .strip { margin: 4px 0 12px; }
-  .cells { display: flex; gap: 3px; align-items: flex-end; }
-  .cell { flex: 1; background: none; border: 0; padding: 12px 0 2px; cursor: pointer; position: relative;
-          display: flex; flex-direction: column; align-items: center; gap: 3px;
-          border-radius: 6px; color: var(--primary-text-color); min-width: 0; }
-  .cell:hover { background: var(--secondary-background-color); }
-  .cell.boundary { border-left: 1px dashed var(--secondary-text-color); }
-  .cell .star { position: absolute; top: 0; font-size: 0.7rem; color: var(--rc, var(--primary-color)); }
-  .cell.is-best .cell-day { color: var(--primary-text-color); font-weight: 700; }
-  .bar-wrap { height: 44px; display: flex; align-items: flex-end;
-              border-bottom: 1px solid var(--divider-color); width: 100%; justify-content: center; }
-  .bar { width: 60%; max-width: 16px; border-radius: 3px 3px 0 0; display: block; background: var(--divider-color); }
-  .cell-score { font-size: 0.8rem; font-weight: 600; }
-  .cell-day { font-size: 0.72rem; color: var(--secondary-text-color); white-space: nowrap; }
-  .legend { font-size: 0.72rem; color: var(--secondary-text-color); margin-top: 8px; display: flex; align-items: center; gap: 5px; }
-  .legend .dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
-  .legend .dot.full { background: var(--success-color, #4caf50); }
-  .legend .dot.outlook { background: var(--divider-color); margin-left: 6px; }
-  .more { margin-top: 8px; background: none; border: 0; color: var(--primary-color);
-          cursor: pointer; font-size: 0.82rem; padding: 2px 0; }
+  /* hero */
+  .hero {
+    position: relative; width: 100%; text-align: left; font: inherit;
+    display: grid; grid-template-columns: 1fr auto; column-gap: 14px; row-gap: 2px;
+    padding: 14px; border: 1px solid var(--divider-color);
+    border-left: 4px solid var(--rc, var(--primary-color));
+    border-radius: 12px; background: var(--card-background-color);
+    color: var(--primary-text-color); cursor: pointer;
+  }
+  .hero:hover, .hero.is-open { background: var(--secondary-background-color); }
+  .hero .eyebrow { grid-column: 1; font-size: 0.68rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--secondary-text-color); }
+  .hero .when { grid-column: 1; font-size: 1.15rem; font-weight: 700; }
+  .hero .win { grid-column: 1; color: var(--secondary-text-color); font-size: 0.92rem; }
+  .hero .rating { grid-column: 1; display: flex; align-items: center; gap: 6px; font-size: 0.82rem; margin-top: 3px; }
+  .hero .rating .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rc, var(--disabled-text-color)); flex: none; }
+  .hero .badge { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--secondary-text-color);
+                 border: 1px solid var(--divider-color); border-radius: 999px; padding: 1px 6px; }
+  .hero .score { grid-column: 2; grid-row: 1 / span 4; align-self: center; text-align: center; padding-left: 6px; }
+  .hero .score b { display: block; font-size: 2.4rem; font-weight: 800; line-height: 1;
+                   color: var(--rc, var(--primary-text-color)); font-variant-numeric: tabular-nums; }
+  .hero .score span { font-size: 0.68rem; color: var(--secondary-text-color); }
+  .hero .cond { grid-column: 1 / -1; margin-top: 10px; font-size: 0.82rem; line-height: 1.5; }
+  .hero .cond .sep { color: var(--secondary-text-color); margin: 0 5px; }
 
-  .windows { margin-bottom: 8px; }
-  .windows-h { font-size: 0.74rem; letter-spacing: 0.04em; text-transform: uppercase;
-               color: var(--secondary-text-color); margin: 2px 0 4px; }
-  .wrow { width: 100%; display: grid; grid-template-columns: 3.6em 1fr auto; align-items: center;
-          gap: 10px; background: none; border: 0; padding: 7px 4px; cursor: pointer;
-          color: var(--primary-text-color); border-radius: 6px; font-size: 0.86rem;
-          border-bottom: 1px solid var(--divider-color); }
-  .wrow.is-best { --hl: 1; }
-  .wrow.is-best .wrow-day, .wrow.is-best .wrow-time { color: var(--primary-text-color); font-weight: 600; }
+  /* timeline */
+  .tl { margin-top: 16px; }
+  .tl-h, .win-h { font-size: 0.68rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--secondary-text-color); margin-bottom: 6px; }
+  .tl-scroll { overflow-x: auto; overflow-y: hidden; }
+  .tl-row { display: flex; gap: 3px; align-items: flex-end; }
+  .day {
+    flex: 1 1 0; min-width: 0; font: inherit; background: none; border: 0;
+    padding: 8px 1px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    border-radius: 7px; cursor: pointer; color: var(--primary-text-color); position: relative;
+  }
+  .day:hover, .day.is-open { background: var(--secondary-background-color); }
+  .day.outlook { opacity: 0.5; }
+  .day.boundary { margin-left: 5px; border-left: 1px dashed var(--secondary-text-color); }
+  .day .star { position: absolute; top: -3px; font-size: 0.62rem; color: var(--rc, var(--primary-color)); }
+  .day .d-score { font-size: 0.72rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--rc, var(--primary-text-color)); }
+  .day .d-bar-wrap { height: 44px; width: 100%; display: flex; align-items: flex-end; justify-content: center;
+                     border-bottom: 1px solid var(--divider-color); }
+  .day .d-bar { width: 60%; max-width: 13px; min-height: 3px; border-radius: 3px 3px 0 0; background: var(--rc, var(--divider-color)); }
+  .day .d-name { font-size: 0.68rem; color: var(--secondary-text-color); }
+  .day .d-date { font-size: 0.62rem; color: var(--secondary-text-color); opacity: 0.85; }
+  .day.is-best .d-name { color: var(--primary-text-color); font-weight: 700; }
+  .tl-note { font-size: 0.7rem; color: var(--secondary-text-color); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+  .tl-note .tick { border-left: 1px dashed var(--secondary-text-color); height: 10px; }
+  .more { align-self: flex-start; margin-top: 10px; background: none; border: 0; color: var(--primary-color);
+          cursor: pointer; font-size: 0.8rem; padding: 2px 0; font: inherit; }
+
+  /* windows */
+  .win-sec { margin-top: 16px; }
+  .wrow {
+    width: 100%; font: inherit; display: grid; grid-template-columns: 4.2em 1fr auto; gap: 10px;
+    align-items: center; background: none; border: 0; border-bottom: 1px solid var(--divider-color);
+    padding: 9px 2px; cursor: pointer; color: var(--primary-text-color); font-size: 0.87rem; text-align: left;
+  }
   .wrow:last-child { border-bottom: 0; }
-  .wrow:hover { background: var(--secondary-background-color); }
-  .wrow-day { color: var(--secondary-text-color); text-align: left; }
-  .wrow-time { text-align: left; }
-  .wrow-score { font-weight: 600; text-align: right; }
+  .wrow:hover, .wrow.is-open { background: var(--secondary-background-color); }
+  .wrow .w-day { color: var(--secondary-text-color); }
+  .wrow .w-score { font-weight: 700; text-align: right; color: var(--rc, var(--primary-text-color)); font-variant-numeric: tabular-nums; }
+  .wrow.is-best .w-day { color: var(--primary-text-color); font-weight: 600; }
 
-  .detail { margin-top: 10px; border-top: 1px solid var(--divider-color); padding-top: 10px; }
-  .detail-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.9rem; }
-  .detail-head span:first-child { font-weight: 600; }
-  .detail-meta { color: var(--secondary-text-color); font-size: 0.82rem; }
-  .loading { color: var(--secondary-text-color); font-size: 0.85rem; padding: 16px 0; text-align: center; }
+  /* detail */
+  .detail { margin-top: 16px; border-top: 1px solid var(--divider-color); padding-top: 12px; }
+  .detail-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 0.92rem; }
+  .detail-h b { font-weight: 700; }
+  .detail-h .meta { color: var(--secondary-text-color); font-size: 0.8rem; text-align: right; }
+  .loading { color: var(--secondary-text-color); font-size: 0.85rem; text-align: center; padding: 18px 0; }
   .chart-wrap { margin-top: 8px; }
-  .chart { width: 100%; height: 132px; display: block; }
+  .chart { width: 100%; height: 144px; display: block; }
   .chart .grid { stroke: var(--divider-color); stroke-width: 1; opacity: 0.5; }
-  .chart .band.major { fill: var(--primary-color); opacity: 0.14; }
-  .chart .band.minor { fill: var(--primary-color); opacity: 0.07; }
-  .chart .sun-line { stroke: var(--warning-color, #ffb300); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0.8; }
-  .chart .sun-text { fill: var(--warning-color, #ffb300); font-size: 8px; text-anchor: middle; }
-  .chart .score-area { fill: var(--primary-color); opacity: 0.16; }
-  .chart .score-line { fill: none; stroke: var(--primary-color); stroke-width: 2; }
-  .chart .wind-line { fill: none; stroke: var(--secondary-text-color); stroke-width: 1.2; stroke-dasharray: 3 2; opacity: 0.7; }
-  .chart .tide-mark { fill: var(--info-color, #0288d1); }
-  .chart .tide-mark.low { fill: var(--secondary-text-color); }
-  .chart .tide-text { fill: var(--info-color, #0288d1); font-size: 7px; text-anchor: middle; }
-  .chart .axis { fill: var(--secondary-text-color); font-size: 8px; text-anchor: middle; }
-  .stats { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.78rem; color: var(--secondary-text-color); margin-top: 4px; }
+  .chart .band.major { fill: var(--rc, var(--primary-color)); opacity: 0.18; }
+  .chart .band.minor { fill: var(--rc, var(--primary-color)); opacity: 0.09; }
+  .chart .sun { stroke: var(--warning-color, #ffb300); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0.85; }
+  .chart .sun-t { fill: var(--warning-color, #ffb300); font-size: 9px; text-anchor: middle; }
+  .chart .area { fill: var(--rc, var(--primary-color)); opacity: 0.18; }
+  .chart .line { fill: none; stroke: var(--rc, var(--primary-color)); stroke-width: 2; stroke-linejoin: round; }
+  .chart .wind { fill: none; stroke: var(--secondary-text-color); stroke-width: 1.2; stroke-dasharray: 3 2; opacity: 0.75; }
+  .chart .tide { fill: var(--info-color, #0288d1); }
+  .chart .tide.low { fill: var(--secondary-text-color); }
+  .chart .tide-t { fill: var(--secondary-text-color); font-size: 8px; text-anchor: middle; }
+  .chart .axis { fill: var(--secondary-text-color); font-size: 9px; text-anchor: middle; }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.76rem; color: var(--secondary-text-color); margin-top: 8px; align-items: center; }
   .stats ha-icon { --mdc-icon-size: 14px; vertical-align: -2px; }
-  .stats .lg { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-  .stats .k { width: 10px; height: 3px; border-radius: 2px; display: inline-block; }
-  .stats .k.score { background: var(--primary-color); }
-  .stats .k.wind { background: var(--secondary-text-color); }
-  .stats .k.major { background: var(--primary-color); opacity: 0.4; height: 8px; }
-  .stats .k.minor { background: var(--primary-color); opacity: 0.2; height: 8px; }
+  .stats .legend { display: flex; gap: 10px; margin-left: auto; }
+  .stats .legend i { font-style: normal; display: inline-flex; align-items: center; gap: 4px; }
+  .stats .legend i::before { content: ""; width: 12px; height: 3px; border-radius: 2px; display: inline-block; background: currentColor; }
+  .stats .legend i.k-score::before { background: var(--rc, var(--primary-color)); }
+  .stats .legend i.k-wind::before { background: var(--secondary-text-color); }
 
+  /* rating -> accent colour */
   .r-exceptional { --rc: var(--success-color, #2e7d32); }
-  .r-excellent   { --rc: var(--success-color, #43a047); }
+  .r-excellent   { --rc: #43a047; }
   .r-good        { --rc: #7cb342; }
   .r-fair        { --rc: var(--warning-color, #f9a825); }
   .r-marginal    { --rc: #fb8c00; }
   .r-poor        { --rc: var(--error-color, #e53935); }
   .r-unknown     { --rc: var(--disabled-text-color, #9e9e9e); }
-  .bar { background: var(--rc, var(--divider-color)); }
-  .cell-score { color: var(--rc, var(--primary-text-color)); }
-  .wrow-score { color: var(--rc, var(--primary-text-color)); }
-  .r-unknown .bar, .bar.r-unknown { background: var(--divider-color); }
+  .day.r-unknown .d-bar { background: var(--divider-color); }
 `;
 
-// The integration loads this file twice (as an ES module and as a classic
-// script) so it works on browsers that don't register custom elements from a
-// dynamic import(). Guard against the double-run.
+// The card may be pulled in twice (module + classic script via the loader, or a
+// leftover manual resource). Only define once.
 if (!customElements.get("fishing-forecast-card")) {
   customElements.define("fishing-forecast-card", FishingForecastCard);
 
@@ -635,6 +850,6 @@ if (!customElements.get("fishing-forecast-card")) {
   console.info(
     `%c fishing-forecast-card %c v${CARD_VERSION} `,
     "background:#03a9f4;color:#fff;border-radius:3px 0 0 3px;padding:1px 4px",
-    "background:#555;color:#fff;border-radius:0 3px 3px 0;padding:1px 4px",
+    "background:#555;color:#fff;border-radius:0 3px 3px 0;padding:1px 4px"
   );
 }

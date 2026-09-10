@@ -27,3 +27,17 @@ python tools/derive_tide_constituents.py --uhslc 175 --name fremantle --lat -32.
 Prints a `TideStation(...)` block ready to paste. WA ports with UHSLC gauges:
 Fremantle (175), Hillarys, Geraldton, Esperance, Broome, Port Hedland — look up
 the station number at <https://uhslc.soest.hawaii.edu/stations/>.
+
+## `card-preview/`
+
+Render the Lovelace card outside Home Assistant to iterate on it.
+
+```
+python tools/card-preview/dump_fixture.py     # builds card-fixture.json from tests/fixtures/
+python -m http.server 8777                    # then open tools/card-preview/preview.html
+```
+
+`preview.html` stubs `ha-card` / `ha-icon`, feeds the card a mock `hass` from the
+fixture, and shows it light + dark at 300 / 380 / 440 px with open-day / show-all
+toggles. Chromium only — Firefox loading is verified in a real HA instance
+(`docs/card.md`). `card-fixture.json` is git-ignored (regenerate it).

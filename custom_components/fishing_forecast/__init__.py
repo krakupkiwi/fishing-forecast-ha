@@ -23,8 +23,11 @@ if TYPE_CHECKING:
 
 PLATFORMS = ["sensor"]
 
+_FRONTEND_DIR = Path(__file__).parent / "frontend"
 CARD_URL = f"/{DOMAIN}/fishing-forecast-card.js"
-CARD_PATH = Path(__file__).parent / "frontend" / "fishing-forecast-card.js"
+CARD_PATH = _FRONTEND_DIR / "fishing-forecast-card.js"
+LOADER_URL = f"/{DOMAIN}/fishing-forecast-loader.js"
+LOADER_PATH = _FRONTEND_DIR / "fishing-forecast-loader.js"
 _CARD_KEY = f"{DOMAIN}_card_registered"
 
 
@@ -68,14 +71,20 @@ async def _async_register_card(hass: HomeAssistant) -> None:
         from homeassistant.components.http import StaticPathConfig
 
         await hass.http.async_register_static_paths(
-            [StaticPathConfig(CARD_URL, str(CARD_PATH), cache_headers=False)]
+            [
+                StaticPathConfig(LOADER_URL, str(LOADER_PATH), cache_headers=False),
+                StaticPathConfig(CARD_URL, str(CARD_PATH), cache_headers=False),
+            ]
         )
-        # Load it as an ES module AND as a classic <script>. Some browsers
-        # (seen on Firefox 155) don't register a custom element defined inside a
-        # dynamic import(); the classic script works there. The card guards
-        # against defining itself twice.
-        add_extra_js_url(hass, CARD_URL)
-        add_extra_js_url(hass, CARD_URL, es5=True)
+        # HA loads an integration's frontend resource with a single
+        # ``import("<url>")``. On some Firefox builds that dynamic import of the
+        # card module leaves the custom element unregistered (blank card), so we
+        # hand HA a tiny loader module instead: it pulls the real card in as a
+        # classic <script>, which every browser handles the same way. The card
+        # has no import/export, so it runs fine as a classic script and guards
+        # against defining itself twice. CARD_URL stays served so existing manual
+        # dashboard resources keep working.
+        add_extra_js_url(hass, LOADER_URL)
     except Exception:  # card registration is optional; never block setup
         _LOGGER.warning(
             "Could not auto-register the Lovelace card; add %s as a dashboard "

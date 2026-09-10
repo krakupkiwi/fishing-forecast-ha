@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>fishing-forecast-card preview</title>
+    <style>
+      /* A small slice of Home Assistant's theme variables, light + dark. */
+      :root,
+      .theme-light {
+        --primary-color: #03a9f4;
+        --state-icon-color: #44739e;
+        --primary-text-color: #212121;
+        --secondary-text-color: #727272;
+        --disabled-text-color: #bdbdbd;
+        --divider-color: rgba(0, 0, 0, 0.12);
+        --card-background-color: #fff;
+        --secondary-background-color: #e5e5e5;
+        --primary-background-color: #fafafa;
+        --success-color: #43a047;
+        --warning-color: #ff9800;
+        --error-color: #db4437;
+        --info-color: #039be5;
+        --ha-card-border-radius: 12px;
+      }
+      .theme-dark {
+        --primary-color: #03a9f4;
+        --state-icon-color: #c9d1d9;
+        --primary-text-color: #e1e1e1;
+        --secondary-text-color: #9b9b9b;
+        --disabled-text-color: #6f6f6f;
+        --divider-color: rgba(225, 225, 225, 0.12);
+        --card-background-color: #1c1c1c;
+        --secondary-background-color: #282828;
+        --primary-background-color: #111;
+        --success-color: #66bb6a;
+        --warning-color: #ffa726;
+        --error-color: #ef5350;
+        --info-color: #29b6f6;
+      }
+
+      body {
+        margin: 0;
+        font-family: Roboto, system-ui, sans-serif;
+        background: var(--primary-background-color);
+        color: var(--primary-text-color);
+      }
+      .bar {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 10px 14px;
+        background: var(--card-background-color);
+        border-bottom: 1px solid var(--divider-color);
+        position: sticky;
+        top: 0;
+        flex-wrap: wrap;
+      }
+      .bar button {
+        font: inherit;
+        padding: 4px 10px;
+        border: 1px solid var(--divider-color);
+        border-radius: 6px;
+        background: var(--secondary-background-color);
+        color: inherit;
+        cursor: pointer;
+      }
+      .bar button[aria-pressed="true"] {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+      }
+      .stage {
+        padding: 24px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: flex-start;
+      }
+      .slot {
+        width: var(--w, 380px);
+      }
+      .slot h2 {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--secondary-text-color);
+        margin: 0 0 8px;
+      }
+
+      /* minimal stand-ins for HA elements */
+      ha-card {
+        display: block;
+        background: var(--card-background-color);
+        border-radius: var(--ha-card-border-radius, 12px);
+        border: 1px solid var(--divider-color);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+        color: var(--primary-text-color);
+      }
+      ha-icon {
+        display: inline-flex;
+        width: var(--mdc-icon-size, 24px);
+        height: var(--mdc-icon-size, 24px);
+        align-items: center;
+        justify-content: center;
+        font-size: calc(var(--mdc-icon-size, 24px) * 0.9);
+        line-height: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <strong style="margin-right: 8px">fishing-forecast-card</strong>
+      <button id="theme" aria-pressed="false">Dark</button>
+      <button class="w" data-w="300" aria-pressed="false">300</button>
+      <button class="w" data-w="380" aria-pressed="true">380</button>
+      <button class="w" data-w="440" aria-pressed="false">440</button>
+      <button id="open" aria-pressed="false">Open best day</button>
+      <button id="all" aria-pressed="false">Show all 14</button>
+      <span id="err" style="color: var(--error-color)"></span>
+    </div>
+    <div class="stage">
+      <div class="slot theme-light">
+        <h2>Light</h2>
+        <div id="mount-light"></div>
+      </div>
+      <div class="slot theme-dark" style="background: var(--primary-background-color); padding: 12px; border-radius: 12px">
+        <h2>Dark</h2>
+        <div id="mount-dark"></div>
+      </div>
+    </div>
+
+    <script>
+      // ---- stand-ins for the HA custom elements the card references ----
+      const ICONS = {
+        "mdi:fish": "🐟",
+        "mdi:waves": "🌊",
+        "mdi:weather-windy": "💨",
+        "mdi:alert-outline": "⚠️",
+        "mdi:alert-circle-outline": "⛔",
+      };
+      class HaIcon extends HTMLElement {
+        static get observedAttributes() {
+          return ["icon"];
+        }
+        attributeChangedCallback() {
+          this.textContent = ICONS[this.getAttribute("icon")] || "•";
+        }
+        connectedCallback() {
+          this.textContent = ICONS[this.getAttribute("icon")] || "•";
+        }
+      }
+      if (!customElements.get("ha-icon")) customElements.define("ha-icon", HaIcon);
+      if (!customElements.get("ha-card")) {
+        customElements.define("ha-card", class extends HTMLElement {});
+      }
+    </script>
+    <script src="../../custom_components/fishing_forecast/frontend/fishing-forecast-card.js"></script>
+    <script>
+      const ENTITY = "sensor.mindarie_best_fishing_day";
+      const state = { instances: [], fixture: null };
+
+      function makeHass(fixture) {
+        return {
+          states: {
+            [ENTITY]: {
+              entity_id: ENTITY,
+              state: fixture.state.days?.[0]?.date ?? "unknown",
+              last_updated: "2026-09-10T02:00:00+00:00",
+              last_changed: "2026-09-10T02:00:00+00:00",
+              attributes: fixture.state,
+            },
+          },
+          callWS(msg) {
+            if (msg.type === "fishing_forecast/hourly") {
+              return new Promise((r) => setTimeout(() => r(fixture.hourly), 250));
+            }
+            return Promise.reject(new Error("unknown ws command " + msg.type));
+          },
+        };
+      }
+
+      function mount(id) {
+        const host = document.getElementById(id);
+        host.replaceChildren();
+        const el = document.createElement("fishing-forecast-card");
+        el.setConfig({ entity: ENTITY, title: "Fishing Forecast" });
+        el.hass = makeHass(state.fixture);
+        host.appendChild(el);
+        return el;
+      }
+
+      function remountAll() {
+        state.instances = [mount("mount-light"), mount("mount-dark")];
+        syncButtons();
+      }
+
+      function syncButtons() {
+        document.getElementById("open").setAttribute(
+          "aria-pressed",
+          String(state.instances.every((e) => e._openDate)),
+        );
+        document.getElementById("all").setAttribute(
+          "aria-pressed",
+          String(state.instances.every((e) => e._showAll)),
+        );
+      }
+
+      document.getElementById("theme").addEventListener("click", (ev) => {
+        const on = ev.target.getAttribute("aria-pressed") !== "true";
+        ev.target.setAttribute("aria-pressed", String(on));
+        ev.target.textContent = on ? "Light" : "Dark";
+        document.body.style.background = on ? "#111" : "";
+      });
+
+      for (const btn of document.querySelectorAll(".bar .w")) {
+        btn.addEventListener("click", () => {
+          for (const b of document.querySelectorAll(".bar .w")) b.setAttribute("aria-pressed", "false");
+          btn.setAttribute("aria-pressed", "true");
+          document.documentElement.style.setProperty("--w", btn.dataset.w + "px");
+        });
+      }
+
+      document.getElementById("open").addEventListener("click", () => {
+        const best = state.instances[0];
+        const days = state.fixture.state.days;
+        const bi = best._bestIndex(days);
+        for (const e of state.instances) e._toggleDay(days[bi].date);
+        syncButtons();
+      });
+
+      document.getElementById("all").addEventListener("click", () => {
+        for (const e of state.instances) {
+          e._showAll = !e._showAll;
+          e._render();
+        }
+        syncButtons();
+      });
+
+      fetch("./card-fixture.json")
+        .then((r) => {
+          if (!r.ok) throw new Error("card-fixture.json missing — run tools/card-preview/dump_fixture.py");
+          return r.json();
+        })
+        .then((f) => {
+          state.fixture = f;
+          remountAll();
+        })
+        .catch((e) => {
+          document.getElementById("err").textContent = String(e.message || e);
+        });
+    </script>
+  </body>
+</html>
