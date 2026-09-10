@@ -86,8 +86,10 @@ CONF_MARINE_LONGITUDE: Final = "marine_longitude"
 CONF_COAST_BEARING: Final = "coast_bearing"
 CONF_TIMEZONE: Final = "timezone"
 CONF_FORECAST_DAYS: Final = "forecast_days"
+CONF_PROFILE: Final = "profile"
 
 # Options-flow keys
+OPT_PROFILE: Final = "profile"
 OPT_WINDOW_HOURS: Final = "window_hours"
 OPT_PREFERRED_START: Final = "preferred_hours_start"
 OPT_PREFERRED_END: Final = "preferred_hours_end"
@@ -200,15 +202,17 @@ DEFAULT_SOLUNAR: Final[dict[str, Any]] = {
     "minor_minutes": 60,
     "edge_grace_minutes": 30,
     "inside_major": 100,
-    "near_major": 90,
-    "inside_minor": 80,
-    "near_minor": 70,
-    "baseline": 50,
+    "near_major": 88,
+    "inside_minor": 78,
+    "near_minor": 66,
+    # Phase 5: dropped 50 -> 42 after the historical backtest showed the score
+    # distribution compressed into 60-89 (docs/calibration.md).
+    "baseline": 42,
     "phase_bonus": 5,
     "phase_bonus_days": 2,
 }
 DEFAULT_SUN: Final[dict[str, Any]] = {
-    "base": 40,
+    "base": 36,
     "sunrise_window_min": [-60, 150],  # minutes relative to sunrise
     "sunset_window_min": [-150, 60],
     "peak": 100,

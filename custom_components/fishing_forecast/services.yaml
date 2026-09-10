@@ -1,0 +1,45 @@
+log_session:
+  name: Log a fishing session
+  description: >
+    Record how a session went, plus a snapshot of what the model scored for that
+    hour. Use it opportunistically — only when you actually fish — so a later
+    calibration pass can compare the forecast to the result.
+  fields:
+    result:
+      name: Result
+      description: How the fishing was.
+      required: true
+      selector:
+        select:
+          options:
+            - poor
+            - average
+            - good
+            - excellent
+    at:
+      name: When
+      description: Time of the session. Defaults to now.
+      selector:
+        datetime:
+    location:
+      name: Location
+      description: Location name (only needed if you have more than one configured).
+      selector:
+        text:
+    entry_id:
+      name: Config entry
+      description: Alternative to location — the integration entry id.
+      advanced: true
+      selector:
+        text:
+    species:
+      name: Species
+      description: What you were targeting / caught (optional).
+      selector:
+        text:
+    notes:
+      name: Notes
+      description: Anything else worth remembering (optional).
+      selector:
+        text:
+          multiline: true

@@ -563,3 +563,42 @@ Observed in the rendered card (real fixture data): the "best windows" for the
 default config land at night / pre-dawn a lot — the solunar-major-at-night bias
 noted in §10 item repeated. The `preferred_hours` option is the user-facing fix;
 Phase 5 calibration is the systemic one.
+
+---
+
+## 13. Phase 5 outcome (calibration)
+
+Full detail in `docs/calibration.md`; knowledge sources in
+`docs/fishing-knowledge.md`.
+
+- **No public daily catch-quality series exists** for a specific beach — checked
+  Recfishwest, Fishwrecked forums, Fishbrain, seasonal guides. Only anecdotal,
+  survivorship-biased trip reports. So calibration = local knowledge + an
+  environmental backtest + opt-in feedback, not catch-fitting.
+- **Fishing-style profiles** (`profiles.py`) — the headline finding. WA sources
+  are clear that pink snapper / tailor / salmon off Mindarie want the rough,
+  post-front, dirty-water conditions the generic V1 curve penalises. Four presets
+  (`calm_water`, `beach_sport` [default], `rock_snapper`, `estuary_marina`)
+  reshape swell / wind / tide / night scoring. Config-flow `profile` selector,
+  changeable in options. The per-component weight sliders were removed from the
+  options form (the profile is the weight preset).
+- **`tools/backtest.py`** — pulls the ERA5 + marine archive (weather to 1940,
+  swell to ~2022, modelled tide to ~2024) and scores every hour with the real
+  engine. 20-month run on Mindarie: diurnal pattern spot-on (dawn > dusk >
+  sea-breeze afternoon), top days sensible, but the daily-score scale is narrow
+  (~42–88, mean ~73) — treat the score as a *ranking*, not an absolute %.
+- **Calibration changes** (conservative, evidence-based): `solunar.baseline`
+  50→42, `sun.base` 40→36; added `ScoringConfig.daily_second_window_weight`
+  (spec §12's blend) but left it at 0 — the backtest showed a non-zero weight
+  compresses the scale without improving ranking.
+- **`fishing_forecast.log_session` service** (`feedback.py` + `services.yaml`) —
+  one-tap session logging that snapshots the model's score + raw conditions for
+  that hour into `.storage/fishing_forecast_sessions`, for a future calibration
+  pass once a season of real data accumulates.
+
+### Model changes this phase
+
+- `ScoringConfig` gained `daily_second_window_weight` (default 0).
+- `sun.night_score` optional key — full darkness returns it instead of `sun.base`
+  for the nocturnal profiles.
+- `FishingForecastCoordinator.profile` exposed for the feedback service.

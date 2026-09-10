@@ -96,6 +96,7 @@ files = [
     "custom_components/fishing_forecast/util.py",
     "custom_components/fishing_forecast/core.py",
     "custom_components/fishing_forecast/entry_data.py",
+    "custom_components/fishing_forecast/profiles.py",
     "custom_components/fishing_forecast/serialize.py",
     "custom_components/fishing_forecast/scoring",
     "custom_components/fishing_forecast/astronomy",

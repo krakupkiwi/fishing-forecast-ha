@@ -18,6 +18,7 @@ _USER_INPUT = {
     "land_location": {"latitude": -31.69, "longitude": 115.70},
     "marine_location": {"latitude": -31.72, "longitude": 115.55},
     "coast_bearing": 270,
+    "profile": "beach_sport",
     "forecast_days": 14,
 }
 
@@ -54,16 +55,10 @@ async def test_options_flow_round_trip(hass: HomeAssistant, config_entry, mock_o
     assert result["type"] is FlowResultType.FORM
 
     submit = {
+        "profile": "rock_snapper",
         OPT_WINDOW_HOURS: 4,
         "update_interval_minutes": 45,
         "coast_bearing": 260,
-        "weight_wind": 40,
-        "weight_swell": 20,
-        "weight_tide": 15,
-        "weight_solunar": 15,
-        "weight_sun": 10,
-        "weight_rain": 5,
-        "weight_pressure": 5,
     }
     result = await hass.config_entries.options.async_configure(result["flow_id"], submit)
     await hass.async_block_till_done()
@@ -71,3 +66,4 @@ async def test_options_flow_round_trip(hass: HomeAssistant, config_entry, mock_o
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert config_entry.options[OPT_WINDOW_HOURS] == 4
     assert config_entry.options["coast_bearing"] == 260
+    assert config_entry.options["profile"] == "rock_snapper"

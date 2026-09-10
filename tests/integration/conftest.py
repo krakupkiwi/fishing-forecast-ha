@@ -34,6 +34,7 @@ from custom_components.fishing_forecast.const import (
     CONF_MARINE_LATITUDE,
     CONF_MARINE_LONGITUDE,
     CONF_NAME,
+    CONF_PROFILE,
     CONF_TIMEZONE,
     DOMAIN,
 )
@@ -88,6 +89,7 @@ def config_entry(hass: HomeAssistant) -> MockConfigEntry:
             CONF_MARINE_LONGITUDE: 115.55,
             CONF_COAST_BEARING: 270.0,
             CONF_FORECAST_DAYS: 14,
+            CONF_PROFILE: "beach_sport",
             CONF_TIMEZONE: "Australia/Perth",
         },
     )

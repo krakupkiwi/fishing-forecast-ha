@@ -142,6 +142,11 @@ class ScoringConfig:
     window_hours: int = 3
     # Optional inclusive local-hour range a valid window must sit within, e.g. (4, 21).
     preferred_hours: tuple[int, int] | None = None
+    # Daily score = best_window*(1-w) + second_nonoverlapping_window*w. Default 0
+    # (pure best window = "when is the one best time"). The historical backtest
+    # showed a non-zero weight compresses the scale without improving day ranking
+    # (docs/calibration.md), so it stays opt-in.
+    daily_second_window_weight: float = 0.0
 
     # Component sub-tables are stored as plain dicts/tuples of breakpoints so they
     # round-trip through the Home Assistant options flow as JSON. See docs/scoring.md.

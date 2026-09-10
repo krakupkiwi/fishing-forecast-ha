@@ -2,6 +2,9 @@
 
 A smooth (cosine) bump around sunrise and sunset: peak at the event, tapering to a
 non-zero base in the middle of the day / night. You can still catch fish at noon.
+
+Profiles that target nocturnal species (mulloway, squid) set ``sun.night_score``
+so full darkness scores above the daytime ``base`` instead of below it.
 """
 
 from __future__ import annotations
@@ -40,4 +43,18 @@ def score(time_utc: datetime, astro_day: AstroDay, cfg: ScoringConfig) -> float 
 
     if astro_day.sunrise_utc is None and astro_day.sunset_utc is None:
         return None
+
+    night_score = cfg.sun.get("night_score")
+    if night_score is not None and best <= base and _is_night(time_utc, astro_day):
+        return clamp(float(night_score), 0.0, 100.0)
     return clamp(best, 0.0, 100.0)
+
+
+def _is_night(time_utc: datetime, astro_day: AstroDay) -> bool:
+    """True when the sun is down for ``astro_day`` at ``time_utc``."""
+
+    sunrise = astro_day.sunrise_utc
+    sunset = astro_day.sunset_utc
+    if sunset is not None and time_utc >= sunset:
+        return True
+    return sunrise is not None and time_utc <= sunrise

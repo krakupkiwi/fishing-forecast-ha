@@ -16,6 +16,7 @@ from .const import (
     CONF_MARINE_LATITUDE,
     CONF_MARINE_LONGITUDE,
     CONF_NAME,
+    CONF_PROFILE,
     CONF_TIMEZONE,
     DEFAULT_FORECAST_DAYS,
     DEFAULT_UPDATE_MINUTES,
@@ -23,12 +24,13 @@ from .const import (
     OPT_COAST_BEARING,
     OPT_PREFERRED_END,
     OPT_PREFERRED_START,
+    OPT_PROFILE,
     OPT_UPDATE_MINUTES,
     OPT_WEIGHT_PREFIX,
     OPT_WINDOW_HOURS,
-    default_scoring_config,
 )
 from .models import Component, LocationConfig, ScoringConfig
+from .profiles import DEFAULT_PROFILE, scoring_config_for
 from .util import wrap360
 
 
@@ -60,8 +62,14 @@ def update_minutes(options: Mapping[str, Any]) -> int:
     return int(options.get(OPT_UPDATE_MINUTES, DEFAULT_UPDATE_MINUTES))
 
 
-def scoring_from_entry(options: Mapping[str, Any]) -> ScoringConfig:
-    cfg = default_scoring_config()
+def profile_name(data: Mapping[str, Any], options: Mapping[str, Any]) -> str:
+    return str(options.get(OPT_PROFILE) or data.get(CONF_PROFILE) or DEFAULT_PROFILE)
+
+
+def scoring_from_entry(
+    options: Mapping[str, Any], data: Mapping[str, Any] | None = None
+) -> ScoringConfig:
+    cfg = scoring_config_for(profile_name(data or {}, options))
 
     window_hours = int(options.get(OPT_WINDOW_HOURS, DEFAULT_WINDOW_HOURS))
 

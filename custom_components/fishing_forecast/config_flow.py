@@ -20,6 +20,7 @@ from .const import (
     CONF_MARINE_LATITUDE,
     CONF_MARINE_LONGITUDE,
     CONF_NAME,
+    CONF_PROFILE,
     CONF_TIMEZONE,
     DEFAULT_FORECAST_DAYS,
     DEFAULT_UPDATE_MINUTES,
@@ -34,15 +35,24 @@ from .const import (
     OPT_COAST_BEARING,
     OPT_PREFERRED_END,
     OPT_PREFERRED_START,
+    OPT_PROFILE,
     OPT_UPDATE_MINUTES,
-    OPT_WEIGHT_PREFIX,
     OPT_WINDOW_HOURS,
-    default_scoring_config,
 )
 from .coordinator import FishingForecastConfigEntry
 from .entry_data import slugify_id
+from .profiles import DEFAULT_PROFILE, profile_labels
 
 _LOCATION = selector.LocationSelector(selector.LocationSelectorConfig(radius=False))
+_PROFILE = selector.SelectSelector(
+    selector.SelectSelectorConfig(
+        options=[
+            selector.SelectOptionDict(value=key, label=label)
+            for key, label in profile_labels().items()
+        ],
+        mode=selector.SelectSelectorMode.DROPDOWN,
+    )
+)
 _BEARING = selector.NumberSelector(
     selector.NumberSelectorConfig(min=0, max=359, step=1, mode=selector.NumberSelectorMode.BOX)
 )
@@ -81,6 +91,7 @@ class FishingForecastConfigFlow(ConfigFlow, domain=DOMAIN):
                 CONF_MARINE_LONGITUDE: float(sea["longitude"]),
                 CONF_COAST_BEARING: float(user_input[CONF_COAST_BEARING]),
                 CONF_FORECAST_DAYS: int(user_input[CONF_FORECAST_DAYS]),
+                CONF_PROFILE: user_input[CONF_PROFILE],
                 CONF_TIMEZONE: self.hass.config.time_zone,
             }
             return self.async_create_entry(title=user_input[CONF_NAME], data=data)
@@ -95,6 +106,7 @@ class FishingForecastConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required("land_location", default=home): _LOCATION,
                 vol.Required("marine_location", default=home): _LOCATION,
                 vol.Required(CONF_COAST_BEARING, default=270): _BEARING,
+                vol.Required(CONF_PROFILE, default=DEFAULT_PROFILE): _PROFILE,
                 vol.Required(CONF_FORECAST_DAYS, default=DEFAULT_FORECAST_DAYS): _DAYS,
             }
         )
@@ -117,9 +129,12 @@ class FishingForecastOptionsFlow(OptionsFlow):
 
         opts = self.config_entry.options
         data = self.config_entry.data
-        defaults = default_scoring_config()
 
         fields: dict[Any, Any] = {
+            vol.Required(
+                OPT_PROFILE,
+                default=opts.get(OPT_PROFILE) or data.get(CONF_PROFILE) or DEFAULT_PROFILE,
+            ): _PROFILE,
             vol.Required(
                 OPT_WINDOW_HOURS,
                 default=opts.get(OPT_WINDOW_HOURS, DEFAULT_WINDOW_HOURS),
@@ -160,14 +175,5 @@ class FishingForecastOptionsFlow(OptionsFlow):
                 default=opts.get(OPT_COAST_BEARING, data[CONF_COAST_BEARING]),
             ): _BEARING,
         }
-
-        pct = selector.NumberSelector(
-            selector.NumberSelectorConfig(
-                min=0, max=60, step=1, mode="box", unit_of_measurement="%"
-            )
-        )
-        for comp, weight in defaults.full_weights.items():
-            key = f"{OPT_WEIGHT_PREFIX}{comp.value}"
-            fields[vol.Required(key, default=round(opts.get(key, weight * 100)))] = pct
 
         return self.async_show_form(step_id="init", data_schema=vol.Schema(fields))

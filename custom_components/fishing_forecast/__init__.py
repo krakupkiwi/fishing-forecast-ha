@@ -35,6 +35,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: FishingForecastConfigEnt
 
     from .api.client import OpenMeteoClient
     from .coordinator import FishingForecastCoordinator
+    from .feedback import async_register_feedback_service
     from .websocket import async_register_websockets
 
     client = OpenMeteoClient(async_get_clientsession(hass))
@@ -43,6 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: FishingForecastConfigEnt
 
     entry.runtime_data = coordinator
     async_register_websockets(hass)
+    async_register_feedback_service(hass)
     await _async_register_card(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

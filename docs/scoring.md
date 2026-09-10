@@ -382,3 +382,36 @@ Generated from the winning window's dominant positives, e.g.:
 - swell 0.5–1.5 m, period ≥ 12 s → `"Clean {h:.1f} m groundswell"`
 
 Max 4, ordered by component weight × (score − 60).
+
+---
+
+## 14. Fishing-style profiles (Phase 5)
+
+`profiles.py` defines presets that override the sections above for what you
+target. The config flow picks one; the options flow changes it. Each is a partial
+override of `default_scoring_config()`, weights re-normalised.
+
+| Profile | Key overrides vs the defaults above |
+|---|---|
+| `calm_water` | none of substance — the §1–§13 defaults *are* this style. `tide.early_rise_score` → 75. |
+| `beach_sport` (default) | swell curve peaks 1.2–2.5 m, tolerates to 3.5 m; onshore wind multiplier 0.35 → **0.6**; `sun.night_score` = 55; weights: swell 0.20, sun 0.16, pressure 0.11, wind 0.24. |
+| `rock_snapper` | swell "bigger is better" to ~3 m then a safety fall-off; onshore multiplier → **0.8**; `swell.period_clamp` tightened (short-period storm swell is fine); `sun.night_score` = 65; weights: swell 0.24, pressure 0.15, wind 0.18. |
+| `estuary_marina` | wind almost irrelevant (multiplier ≥ 0.9 all round); swell weight 0.05; `tide.relative_to_high_curve` shifted to favour the run-up; `sun.night_score` = 78; weights: tide 0.30, sun 0.19, pressure 0.18. |
+
+**`sun.night_score`** (optional): when set, full darkness (sun below the horizon,
+outside both dawn/dusk bump windows) returns this value instead of `sun.base`.
+Lets the mulloway / marina styles reward night sessions without a separate
+component.
+
+**`daily_second_window_weight`** (`ScoringConfig`, default **0**): if > 0, the
+daily score becomes `best_window × (1−w) + second_non_overlapping_window × w`.
+The historical backtest (`docs/calibration.md`) showed a non-zero weight
+compresses the scale without improving ranking, so it is opt-in.
+
+### Phase 5 changes to the §1–§13 defaults
+
+- `solunar.baseline` 50 → 42, and `near_major`/`inside_minor`/`near_minor` down a
+  couple of points (a non-solunar hour was scoring too high a floor).
+- `sun.base` 40 → 36.
+
+Rationale and the backtest evidence: `docs/calibration.md`.

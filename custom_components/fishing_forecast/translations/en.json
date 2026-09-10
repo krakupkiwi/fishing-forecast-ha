@@ -3,12 +3,13 @@
     "step": {
       "user": {
         "title": "Add a fishing location",
-        "description": "Pick the spot you fish from, then a point a few kilometres offshore for the wave model (requesting marine data on land can snap to an unusable grid cell). Coast bearing points from the shore straight out to sea — 270° for a west-facing Perth beach.",
+        "description": "Pick the spot you fish from, then a point a few kilometres offshore for the wave model (requesting marine data on land can snap to an unusable grid cell). Coast bearing points from the shore straight out to sea — 270° for a west-facing Perth beach. The fishing style reshapes how swell, wind and tide are scored — pick what you mostly target.",
         "data": {
           "name": "Location name",
           "land_location": "Fishing spot (on shore)",
           "marine_location": "Offshore point (for waves & swell)",
           "coast_bearing": "Coast bearing (degrees, shore → sea)",
+          "profile": "Fishing style / target",
           "forecast_days": "Forecast length (days)"
         }
       }
@@ -21,21 +22,25 @@
     "step": {
       "init": {
         "title": "Fishing Forecast tuning",
-        "description": "Weights are percentages of the full-forecast score and are re-normalised on save. Leave the preferred hours blank to consider the whole day.",
+        "description": "The fishing style sets how much swell, wind, tide and time-of-day matter. Leave the preferred hours blank to consider the whole day.",
         "data": {
+          "profile": "Fishing style / target",
           "window_hours": "Fishing window length (hours)",
           "preferred_hours_start": "Earliest preferred hour (0–23, local)",
           "preferred_hours_end": "Latest preferred hour (0–23, local)",
           "update_interval_minutes": "Update interval",
-          "coast_bearing": "Coast bearing (degrees)",
-          "weight_wind": "Weight: wind",
-          "weight_swell": "Weight: swell",
-          "weight_tide": "Weight: tide",
-          "weight_solunar": "Weight: solunar",
-          "weight_sun": "Weight: dawn / dusk",
-          "weight_rain": "Weight: rain",
-          "weight_pressure": "Weight: pressure trend"
+          "coast_bearing": "Coast bearing (degrees)"
         }
+      }
+    }
+  },
+  "selector": {
+    "profile": {
+      "options": {
+        "calm_water": "Calm water — herring, whiting, squid, garfish",
+        "beach_sport": "Beach sport — tailor, Australian salmon",
+        "rock_snapper": "Rock wall / groyne — pink snapper, mulloway, after storms",
+        "estuary_marina": "Inside the marina / estuary — mulloway, bream (sheltered)"
       }
     }
   },

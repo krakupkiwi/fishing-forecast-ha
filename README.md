@@ -7,14 +7,17 @@ A Home Assistant custom integration + Lovelace card that predicts the best
 First target location: **Mindarie, Western Australia**. The design supports multiple
 configurable locations (Two Rocks, Lancelin, Hillarys, North Mole, Fremantle, …).
 
-> **Status: Phase 4 (Lovelace card) complete.** The integration installs from the
-> UI (config + options flow, `DataUpdateCoordinator`, four sensors, diagnostics,
-> `fishing_forecast/hourly` websocket) and ships a Lovelace card that
-> auto-registers on setup: next-best session, coloured day strip, best-window
-> list, full/outlook boundary, and a tap-through day-detail chart (hourly score,
-> wind, solunar bands, tide markers, sunrise/sunset). Scoring core: 107 tests,
-> ~96% coverage. See [`docs/card.md`](docs/card.md),
-> [`docs/research.md`](docs/research.md), [`docs/scoring.md`](docs/scoring.md),
+> **Status: Phases 1–5 complete.** The integration installs from the UI, produces
+> hour-by-hour scores for the next 1–2 weeks, exposes sensors + a `fishing_forecast/hourly`
+> websocket, and ships an auto-registering Lovelace card (next-best session,
+> coloured day strip, best-window list, full/outlook boundary, tap-through
+> day-detail chart). The forecast is shaped by a **fishing-style profile**
+> (calm water / beach sport / rock snapper / marina). A historical-backtest tool
+> and a `log_session` feedback service support ongoing calibration. Scoring core:
+> 114 tests. See [`docs/card.md`](docs/card.md),
+> [`docs/calibration.md`](docs/calibration.md),
+> [`docs/fishing-knowledge.md`](docs/fishing-knowledge.md),
+> [`docs/scoring.md`](docs/scoring.md), [`docs/research.md`](docs/research.md),
 > [`docs/architecture.md`](docs/architecture.md).
 
 ## How it works
@@ -69,8 +72,25 @@ stored API fixtures in `tests/fixtures/`.
 2. ✅ **Phase 2** — framework-independent models + scoring engine + tests
 3. ✅ **Phase 3** — Home Assistant integration (config flow, coordinator, sensors, diagnostics)
 4. ✅ **Phase 4** — Lovelace card (`docs/card.md`)
-5. **Phase 5** — calibration against real fishing sessions
+5. ✅ **Phase 5** — fishing-style profiles, historical backtest tool, first calibration
+   pass, feedback service (`docs/calibration.md`, `docs/fishing-knowledge.md`)
 6. **Phase 6** — tide upgrade (EOT20 / official source), if demonstrably better
+
+## Fishing style
+
+The forecast is reshaped by what you target — set this in the config flow, change
+it any time in the integration's options:
+
+| Profile | For |
+|---|---|
+| `calm_water` | herring, whiting, squid, garfish — calm, clean water |
+| `beach_sport` *(default)* | tailor, Australian salmon — some wash, dawn/dusk, fronts |
+| `rock_snapper` | pink snapper, mulloway off the rock walls — swell, after storms |
+| `estuary_marina` | mulloway / bream inside the marina — run-in tide, night |
+
+`python tools/backtest.py --start 2024-01-01 --end 2025-08-31 --profile beach_sport`
+runs the engine over the Open-Meteo historical archive to sanity-check the model.
+`docs/calibration.md` has the findings.
 
 ### What Phase 2 delivered
 

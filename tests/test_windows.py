@@ -81,17 +81,24 @@ def test_preferred_hours_filter(mindarie) -> None:
     assert windows[0].start_utc == utc(2026, 9, 12, 21)  # 05:00 Perth
 
 
-def test_daily_score_is_best_window_not_mean(mindarie) -> None:
-    # one excellent 3 h block, rest poor -> day should score ~ the block, not the mean
-    scores = [20] * 6 + [92, 95, 90] + [15] * 15
+def test_daily_score_is_window_driven_not_24h_mean(mindarie) -> None:
+    from dataclasses import replace
+
+    scores = [20] * 6 + [92, 95, 90] + [15] * 15  # one great block, junk otherwise
     hourly = _series(scores, utc(2026, 9, 12, 16))  # starts 00:00 Perth on the 13th
-    windows = best_windows(mindarie, hourly, CFG)
     astro = {utc(2026, 9, 13).date(): AstroDay(utc(2026, 9, 13).date(), None, None)}
-    days = summarise_days(mindarie, hourly, windows, astro, CFG)
-    day = next(d for d in days if d.date_local.isoformat() == "2026-09-13")
-    assert day.score is not None
-    assert day.score > 85
+
+    # default (pure best-window): the day scores ~ the block, not the 24 h mean (~25)
+    windows = best_windows(mindarie, hourly, CFG)
+    day = summarise_days(mindarie, hourly, windows, astro, CFG)[0]
+    assert round(day.score) == 93
     assert day.rating in {Rating.EXCELLENT, Rating.EXCEPTIONAL}
+
+    # opt-in second-window blend pulls a lone great window toward its neighbours
+    blended_cfg = replace(CFG, daily_second_window_weight=0.25)
+    windows = best_windows(mindarie, hourly, blended_cfg)
+    day = summarise_days(mindarie, hourly, windows, astro, blended_cfg)[0]
+    assert 65 < day.score < 82
 
 
 def test_day_with_no_scored_hours_is_unknown(mindarie) -> None:

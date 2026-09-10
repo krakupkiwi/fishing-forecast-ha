@@ -23,6 +23,7 @@ from .core import build_forecast
 from .entry_data import (
     forecast_days,
     location_from_entry,
+    profile_name,
     scoring_from_entry,
     update_minutes,
 )
@@ -54,6 +55,7 @@ class FishingForecastCoordinator(DataUpdateCoordinator[ForecastBundle]):
         )
         self._client = client
         self.location = location_from_entry(entry.data, entry.options)
+        self.profile = profile_name(entry.data, entry.options)
         self._forecast_days = forecast_days(entry.data)
 
     async def _async_update_data(self) -> ForecastBundle:
@@ -80,7 +82,7 @@ class FishingForecastCoordinator(DataUpdateCoordinator[ForecastBundle]):
         marine_fine_payload = _payload_or_none(marine_fine, "marine (fine)")
         marine_ext_payload = _payload_or_none(marine_ext, "marine (extended)")
 
-        scoring = scoring_from_entry(self.config_entry.options)
+        scoring = scoring_from_entry(self.config_entry.options, self.config_entry.data)
         try:
             return await self.hass.async_add_executor_job(
                 partial(

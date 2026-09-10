@@ -141,7 +141,13 @@ def summarise_days(
             else Confidence.OUTLOOK
         )
 
-        score = best.score if best else None
+        if best is None:
+            score = None
+        elif second is not None and cfg.daily_second_window_weight > 0:
+            w = cfg.daily_second_window_weight
+            score = best.score * (1.0 - w) + second.score * w
+        else:
+            score = best.score
         highlights: tuple[str, ...] = ()
         if best is not None:
             block = [
