@@ -1,0 +1,9 @@
+{
+  "captured_utc": "2026-09-10T02:08:21+00:00",
+  "note": "Live Open-Meteo captures for research + scoring tests. Mindarie WA.",
+  "requests": {
+    "weather_mindarie.json": "https://api.open-meteo.com/v1/forecast?latitude=-31.69&longitude=115.7&hourly=temperature_2m%2Cprecipitation%2Crain%2Cshowers%2Ccloud_cover%2Csurface_pressure%2Cpressure_msl%2Cwind_speed_10m%2Cwind_direction_10m%2Cwind_gusts_10m%2Cweather_code&daily=sunrise%2Csunset%2Cdaylight_duration%2Cmoonrise%2Cmoonset%2Cmoon_phase&timezone=Australia%2FPerth&forecast_days=16&wind_speed_unit=kmh",
+    "marine_mindarie.json": "https://marine-api.open-meteo.com/v1/marine?latitude=-31.72&longitude=115.55&hourly=wave_height%2Cwave_direction%2Cwave_period%2Cswell_wave_height%2Cswell_wave_direction%2Cswell_wave_period%2Cwind_wave_height%2Cwind_wave_direction%2Cwind_wave_period%2Csea_surface_temperature%2Cocean_current_velocity%2Cocean_current_direction%2Csea_level_height_msl&timezone=Australia%2FPerth&forecast_days=16&cell_selection=sea",
+    "marine_mindarie_gfswave.json": "https://marine-api.open-meteo.com/v1/marine?latitude=-31.72&longitude=115.55&hourly=wave_height%2Cwave_period%2Cswell_wave_height%2Cswell_wave_direction%2Cswell_wave_period%2Cwind_wave_height%2Cwind_wave_period&models=ncep_gfswave025&timezone=Australia%2FPerth&forecast_days=16"
+  }
+}

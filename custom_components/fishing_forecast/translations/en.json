@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a fishing location",
+        "description": "Marine data is requested at a separate offshore coordinate so the wave model does not resolve to a land grid cell.",
+        "data": {
+          "name": "Location name",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "marine_latitude": "Marine latitude (offshore)",
+          "marine_longitude": "Marine longitude (offshore)",
+          "coast_bearing": "Coast bearing (degrees from shore out to sea)",
+          "timezone": "Time zone",
+          "forecast_days": "Forecast length (days)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This location is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Fishing Forecast options",
+        "data": {
+          "window_hours": "Fishing window length (hours)",
+          "preferred_hours": "Preferred fishing hours (local, e.g. 4-21)",
+          "coast_bearing": "Coast bearing (degrees)"
+        }
+      }
+    }
+  }
+}
