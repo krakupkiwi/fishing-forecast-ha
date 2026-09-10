@@ -2,13 +2,13 @@
   "domain": "fishing_forecast",
   "name": "Fishing Forecast",
   "version": "0.1.0",
-  "codeowners": ["@Sam"],
+  "codeowners": ["@krakupkiwi"],
   "config_flow": true,
   "dependencies": ["http", "frontend", "websocket_api"],
-  "documentation": "https://github.com/Sam/fishing-forecast-ha",
+  "documentation": "https://github.com/krakupkiwi/fishing-forecast-ha",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/Sam/fishing-forecast-ha/issues",
+  "issue_tracker": "https://github.com/krakupkiwi/fishing-forecast-ha/issues",
   "loggers": [],
   "requirements": ["ephem==4.2.1"]
 }

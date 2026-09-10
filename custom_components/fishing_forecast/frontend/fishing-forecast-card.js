@@ -624,7 +624,7 @@ window.customCards.push({
   name: "Fishing Forecast Card",
   description: "Best land-based fishing days and 2–3 h windows for the next 1–2 weeks.",
   preview: false,
-  documentation: "https://github.com/Sam/fishing-forecast-ha",
+  documentation: "https://github.com/krakupkiwi/fishing-forecast-ha",
 });
 
 // eslint-disable-next-line no-console

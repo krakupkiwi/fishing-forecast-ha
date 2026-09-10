@@ -37,6 +37,25 @@ marine precision they don't have.
 See [`docs/scoring.md`](docs/scoring.md) for every constant and
 [`docs/architecture.md`](docs/architecture.md) for module boundaries.
 
+## Install
+
+### HACS (custom repository)
+
+1. HACS → ⋮ → **Custom repositories**. Add
+   `https://github.com/krakupkiwi/fishing-forecast-ha`, category **Integration**.
+2. Find **Fishing Forecast** in HACS, **Download**, then **restart Home Assistant**.
+3. **Settings → Devices & Services → Add Integration → Fishing Forecast** and
+   fill in the location.
+4. The Lovelace card is served automatically — just add
+   `type: custom:fishing-forecast-card` to a dashboard (see [`docs/card.md`](docs/card.md)).
+
+### Manual
+
+Copy `custom_components/fishing_forecast/` into your Home Assistant `config/custom_components/`
+directory, restart, then add the integration as in step 3 above.
+
+`ephem` (the only dependency) is installed automatically on first setup.
+
 ## Repository layout
 
 ```
