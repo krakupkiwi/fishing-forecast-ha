@@ -12,7 +12,7 @@
  * Lovelace resource.
  */
 
-const CARD_VERSION = "0.1.0";
+const CARD_VERSION = "0.1.1";
 
 const RATING_CLASS = {
   exceptional: "r-exceptional",
@@ -616,16 +616,25 @@ const STYLE = `
   .r-unknown .bar, .bar.r-unknown { background: var(--divider-color); }
 `;
 
-customElements.define("fishing-forecast-card", FishingForecastCard);
+// The integration loads this file twice (as an ES module and as a classic
+// script) so it works on browsers that don't register custom elements from a
+// dynamic import(). Guard against the double-run.
+if (!customElements.get("fishing-forecast-card")) {
+  customElements.define("fishing-forecast-card", FishingForecastCard);
 
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "fishing-forecast-card",
-  name: "Fishing Forecast Card",
-  description: "Best land-based fishing days and 2–3 h windows for the next 1–2 weeks.",
-  preview: false,
-  documentation: "https://github.com/krakupkiwi/fishing-forecast-ha",
-});
+  window.customCards = window.customCards || [];
+  window.customCards.push({
+    type: "fishing-forecast-card",
+    name: "Fishing Forecast Card",
+    description: "Best land-based fishing days and 2–3 h windows for the next 1–2 weeks.",
+    preview: false,
+    documentation: "https://github.com/krakupkiwi/fishing-forecast-ha",
+  });
 
-// eslint-disable-next-line no-console
-console.info(`%c fishing-forecast-card %c v${CARD_VERSION} `, "background:#03a9f4;color:#fff;border-radius:3px 0 0 3px;padding:1px 4px", "background:#555;color:#fff;border-radius:0 3px 3px 0;padding:1px 4px");
+  // eslint-disable-next-line no-console
+  console.info(
+    `%c fishing-forecast-card %c v${CARD_VERSION} `,
+    "background:#03a9f4;color:#fff;border-radius:3px 0 0 3px;padding:1px 4px",
+    "background:#555;color:#fff;border-radius:0 3px 3px 0;padding:1px 4px",
+  );
+}

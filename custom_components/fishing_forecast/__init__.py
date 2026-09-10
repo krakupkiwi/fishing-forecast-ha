@@ -70,7 +70,12 @@ async def _async_register_card(hass: HomeAssistant) -> None:
         await hass.http.async_register_static_paths(
             [StaticPathConfig(CARD_URL, str(CARD_PATH), cache_headers=False)]
         )
+        # Load it as an ES module AND as a classic <script>. Some browsers
+        # (seen on Firefox 155) don't register a custom element defined inside a
+        # dynamic import(); the classic script works there. The card guards
+        # against defining itself twice.
         add_extra_js_url(hass, CARD_URL)
+        add_extra_js_url(hass, CARD_URL, es5=True)
     except Exception:  # card registration is optional; never block setup
         _LOGGER.warning(
             "Could not auto-register the Lovelace card; add %s as a dashboard "
