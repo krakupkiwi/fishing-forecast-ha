@@ -24,6 +24,7 @@ dev = [
     "mypy>=1.13",
     "aioresponses>=0.7",
     "freezegun>=1.5",
+    "tzdata>=2024.1 ; sys_platform == 'win32'",
 ]
 
 [tool.pytest.ini_options]
@@ -63,7 +64,16 @@ python_version = "3.13"
 strict = true
 warn_unreachable = true
 disallow_untyped_defs = true
+# Strict typing is enforced on the shipped integration only.
+files = ["custom_components"]
+
 # Home Assistant and ephem are untyped-ish in places; loosen only where needed.
 [[tool.mypy.overrides]]
 module = ["ephem", "homeassistant.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+warn_return_any = false

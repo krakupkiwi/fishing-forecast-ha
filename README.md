@@ -7,8 +7,11 @@ A Home Assistant custom integration + Lovelace card that predicts the best
 First target location: **Mindarie, Western Australia**. The design supports multiple
 configurable locations (Two Rocks, Lancelin, Hillarys, North Mole, Fremantle, …).
 
-> **Status: Phase 1 (research) complete.** No integration or scoring logic is
-> implemented yet. See [`docs/research.md`](docs/research.md) for findings and
+> **Status: Phase 2 (core scoring engine) complete.** The framework-independent
+> models, astronomy, Open-Meteo parsers and scoring engine are implemented and
+> tested (102 tests, ~96% coverage on the core). No Home Assistant wiring yet.
+> See [`docs/research.md`](docs/research.md) for findings,
+> [`docs/scoring.md`](docs/scoring.md) for the scoring model, and
 > [`docs/project-spec.md`](docs/project-spec.md) for the full specification.
 
 ## How it works
@@ -58,11 +61,27 @@ Home Assistant and is tested against stored API fixtures in `tests/fixtures/`.
 ## Roadmap
 
 1. ✅ **Phase 1** — research & API validation (`docs/research.md`)
-2. **Phase 2** — framework-independent models + scoring engine + tests
+2. ✅ **Phase 2** — framework-independent models + scoring engine + tests
 3. **Phase 3** — Home Assistant integration (config flow, coordinator, sensors, diagnostics)
 4. **Phase 4** — Lovelace card
 5. **Phase 5** — calibration against real fishing sessions
 6. **Phase 6** — tide upgrade (EOT20 / official source), if demonstrably better
+
+### What Phase 2 delivered
+
+`custom_components/fishing_forecast/` (all importable with **no Home Assistant**):
+
+- `models.py` — frozen dataclasses for every input and output
+- `util.py` — angle math, breakpoint interpolation, timezone conversion
+- `api/open_meteo_weather.py`, `api/open_meteo_marine.py` — JSON → typed rows,
+  including the `best_match` + `ncep_gfswave025` marine merge
+- `astronomy/ephemeris.py` — `ephem` wrapper (sun/moon events, transits, phase)
+- `astronomy/solunar.py` — major/minor feeding periods
+- `scoring/` — `wind`, `swell`, `tide` (extrema detection + score), `solunar`,
+  `sunlight`, `rain`, `pressure`, the weight `engine`, and rolling `windows` +
+  daily summaries
+- `core.py` — `build_forecast(location, payloads, cfg) -> ForecastBundle`, the
+  single entry point the Phase 3 coordinator will call
 
 ## Data licence / attribution
 

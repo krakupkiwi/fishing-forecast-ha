@@ -6,7 +6,13 @@ in [`tests/fixtures/`](../tests/fixtures/).
 
 This document records what was verified, what differs from the assumptions in
 [`project-spec.md`](project-spec.md), the open questions, and the proposed data
-models + test strategy. **No integration or scoring code has been written yet.**
+models + test strategy.
+
+> **Phase 2 update (2026-09-10):** the core models, Open-Meteo parsers, `ephem`
+> astronomy, solunar periods and the full scoring engine are now implemented in
+> `custom_components/fishing_forecast/` and tested (102 tests). Deviations found
+> during implementation are noted inline below and in `docs/scoring.md`. Still no
+> Home Assistant wiring (Phase 3).
 
 ---
 
@@ -446,9 +452,38 @@ client layer. Core scoring tests import **nothing** from `homeassistant`.
 
 ---
 
-## 10. What Phase 2 will build (not started)
+## 10. Phase 2 outcome (built)
 
-Framework-independent `scoring/` + `astronomy/` + `models.py` with the full test
-suite from §8, using the committed fixtures. No Home Assistant imports. No card.
-`docs/scoring.md` holds the authoritative constants; code reads them from
-`ScoringConfig` defaults in `const.py`.
+Framework-independent `models.py` + `util.py` + `api/` + `astronomy/` + `scoring/`
++ `core.py`, 102 tests, ~96% coverage on the core, `ruff` + `mypy --strict` clean.
+`docs/scoring.md` is the authoritative constants source; code reads them from the
+`ScoringConfig` defaults in `const.py`. No Home Assistant imports, no card.
+
+What changed from the §9 plan during implementation:
+
+1. **Marine merge seam** — implemented as a per-field preference (fine wins, else
+   extended), not a cross-fade. `has_fine_marine` / `has_tide` flags drive the
+   per-hour `full`/`outlook` decision. The cross-fade idea is deferred; the hard
+   switch at the fine-model horizon is currently sharp but honest.
+2. **`moon_phase` fraction** — `test_ephemeris.py` now checks ephem's synodic
+   fraction against Open-Meteo's daily `moon_phase` across 12 days (< 0.05, wrapped
+   at the new-moon boundary). Illumination comes straight from `ephem.Moon().phase`.
+3. **Wind combine** — the "raw × strength" blend from an earlier draft mis-scored
+   dead calm as poor when onshore. Replaced with
+   `speed_sub × (1 − dir_weight × (1 − mult))` where
+   `dir_weight = clamp(speed / 18, 0, 1)`. See `docs/scoring.md` §3.3.
+4. **`preferred/exposed_wind_directions` nudge** — fields exist on `LocationConfig`
+   but the ±0.1 multiplier nudge is **not** wired into `scoring/wind.py` yet
+   (deferred to Phase 5 calibration).
+5. **Tide extrema** — `scoring/tide.py` does discrete turning-point detection with
+   parabolic sub-sample refinement, then min-spacing + min-prominence filtering,
+   and returns `direction=None` (component dropped) when it can't decide. Verified
+   on synthetic semidiurnal series with and without ripple noise.
+6. **Windows** — triangular centre weighting `[1, 1.3, 1]` for a 3 h window; the
+   spec's worked example (`17:00–20:00 @ 91`) is a passing test. `end_utc` is the
+   exclusive boundary. Daily score = best window (not the 24 h mean) — tested.
+7. **Dev env** — Windows needs `tzdata` for `zoneinfo` (added to dev extras, HA
+   bundles it in production).
+
+Deferred to later phases: `freezegun`-based time-freezing tests, `syrupy` snapshot
+of a whole `ForecastBundle`, and the CI workflow file.

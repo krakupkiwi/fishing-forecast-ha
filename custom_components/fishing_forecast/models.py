@@ -15,6 +15,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from enum import StrEnum
+from typing import Any
+
+# Component sub-tables (wind/swell/tide/...) are dynamic JSON-ish config blobs that
+# round-trip through the Home Assistant options flow. They are intentionally loose.
+ComponentTable = dict[str, Any]
 
 # --------------------------------------------------------------------------- #
 # Enums
@@ -108,6 +113,8 @@ class LocationConfig:
     coast_bearing: float
     # IANA tz name, e.g. "Australia/Perth". Used only for local-day bucketing + display.
     timezone: str = "Australia/Perth"
+    # Ground elevation (m) at the land coordinate; used for sun/moon rise-set refraction.
+    elevation_m: float = 0.0
 
     # Location-specific swell tuning (metres). None => use ScoringConfig defaults.
     ideal_swell_min: float | None = None
@@ -138,13 +145,13 @@ class ScoringConfig:
 
     # Component sub-tables are stored as plain dicts/tuples of breakpoints so they
     # round-trip through the Home Assistant options flow as JSON. See docs/scoring.md.
-    wind: dict[str, object] = field(default_factory=dict)
-    swell: dict[str, object] = field(default_factory=dict)
-    tide: dict[str, object] = field(default_factory=dict)
-    solunar: dict[str, object] = field(default_factory=dict)
-    sun: dict[str, object] = field(default_factory=dict)
-    rain: dict[str, object] = field(default_factory=dict)
-    pressure: dict[str, object] = field(default_factory=dict)
+    wind: ComponentTable = field(default_factory=dict)
+    swell: ComponentTable = field(default_factory=dict)
+    tide: ComponentTable = field(default_factory=dict)
+    solunar: ComponentTable = field(default_factory=dict)
+    sun: ComponentTable = field(default_factory=dict)
+    rain: ComponentTable = field(default_factory=dict)
+    pressure: ComponentTable = field(default_factory=dict)
 
     day_full_hours_fraction: float = 0.6
 
@@ -221,7 +228,7 @@ class SolunarPeriod:
 @dataclass(frozen=True, slots=True)
 class TideSample:
     time_utc: datetime
-    height_m: float
+    height_m: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,6 +247,8 @@ class TideState:
     direction: TideDirection | None
     next_extreme: TideExtremePoint | None
     minutes_to_next_extreme: float | None
+    last_extreme: TideExtremePoint | None
+    minutes_since_last_extreme: float | None
     rate_m_per_h: float | None
 
 

@@ -7,7 +7,7 @@ rationale behind every number here.
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Any, Final
 
 from .models import Component, ScoringConfig
 
@@ -126,7 +126,7 @@ DEFAULT_OUTLOOK_WEIGHTS: Final[dict[Component, float]] = {
 }
 
 # Breakpoint tables: list[(x, score)], monotonic x, linear interpolation between.
-DEFAULT_WIND: Final[dict[str, object]] = {
+DEFAULT_WIND: Final[dict[str, Any]] = {
     "speed_kmh_curve": [
         (0, 100),
         (8, 100),
@@ -144,10 +144,13 @@ DEFAULT_WIND: Final[dict[str, object]] = {
         "135": 0.55,
         "180": 0.35,
     },
+    # Wind speed (km/h) at which the directional multiplier reaches full effect.
+    # Below this the coastline matters progressively less; at dead calm not at all.
+    "direction_full_effect_kmh": 18.0,
     "gust_ratio_penalty": {"ratio": 1.6, "min_gust_kmh": 25, "factor": 0.85},
     "directional_hint_nudge": 0.10,
 }
-DEFAULT_SWELL: Final[dict[str, object]] = {
+DEFAULT_SWELL: Final[dict[str, Any]] = {
     "height_m_curve": [
         (0.0, 55),
         (0.3, 70),
@@ -167,7 +170,7 @@ DEFAULT_SWELL: Final[dict[str, object]] = {
     "max_safe_swell_m": 2.5,
     "over_safe_cap": 10,
 }
-DEFAULT_TIDE: Final[dict[str, object]] = {
+DEFAULT_TIDE: Final[dict[str, Any]] = {
     # hours relative to next/last high -> score (interpolated); +ve = after high
     "relative_to_high_curve": [
         (-2.0, 90),
@@ -183,7 +186,7 @@ DEFAULT_TIDE: Final[dict[str, object]] = {
     "min_prominence_m": 0.05,
     "min_extreme_spacing_h": 4.0,
 }
-DEFAULT_SOLUNAR: Final[dict[str, object]] = {
+DEFAULT_SOLUNAR: Final[dict[str, Any]] = {
     "major_minutes": 120,
     "minor_minutes": 60,
     "edge_grace_minutes": 30,
@@ -195,7 +198,7 @@ DEFAULT_SOLUNAR: Final[dict[str, object]] = {
     "phase_bonus": 5,
     "phase_bonus_days": 2,
 }
-DEFAULT_SUN: Final[dict[str, object]] = {
+DEFAULT_SUN: Final[dict[str, Any]] = {
     "base": 40,
     "sunrise_window_min": [-60, 150],  # minutes relative to sunrise
     "sunset_window_min": [-150, 60],
@@ -203,10 +206,10 @@ DEFAULT_SUN: Final[dict[str, object]] = {
     "shoulder": 70,
     "shoulder_offset_min": 90,
 }
-DEFAULT_RAIN: Final[dict[str, object]] = {
+DEFAULT_RAIN: Final[dict[str, Any]] = {
     "mm_h_curve": [(0.0, 100), (0.5, 90), (1.0, 75), (2.0, 55), (5.0, 30), (10.0, 5)],
 }
-DEFAULT_PRESSURE: Final[dict[str, object]] = {
+DEFAULT_PRESSURE: Final[dict[str, Any]] = {
     "lookback_hours": 3,
     "bins": [  # (delta_hpa_upper_exclusive, trend, score); last bin is the catch-all
         (-3.0, "rapidly_falling", 80),

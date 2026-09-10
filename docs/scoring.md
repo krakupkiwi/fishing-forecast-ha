@@ -113,23 +113,38 @@ Let `offshore_alignment = abs(wrap180(wind_from_deg − (coast_bearing + 180)))`
 Multiplier is **interpolated** across the band centres (0/45/90/135/180°), not stepped.
 
 Optional per-location override: `preferred_wind_directions` / `exposed_wind_directions`
-nudge the multiplier ±0.1 (clamped to [0, 1]) when the wind sits in those sectors.
+are intended to nudge the multiplier ±`directional_hint_nudge` (default 0.1, clamped
+to [0, 1]) when the wind sits in those sectors. **Not wired up in the core yet** —
+deferred to Phase 5 calibration; the fields exist on `LocationConfig`.
 
-### 3.3 Combine — strong wind dominates direction
+### 3.3 Combine — direction only bites once there is wind
 
 ```
-strength = speed_subscore / 100                      # 0..1
-raw      = speed_subscore * dir_multiplier
-# let a bad speed pull the benefit of a good direction back toward the speed score
-wind_score = raw * strength + speed_subscore * (1 - strength)
+dir_weight = clamp(wind_speed_kmh / direction_full_effect_kmh, 0, 1)   # 0..1
+wind_score = speed_subscore * (1 - dir_weight * (1 - dir_multiplier))
 ```
 
-Effect: 8 km/h offshore → ~100; 35 km/h offshore → speed_subscore ≈ 3, so
-`wind_score ≈ 3` (an offshore gale is still unfishable). 12 km/h onshore →
-`speed ≈ 88, mult ≈ 0.35, strength ≈ 0.88` → ≈ 34.
+with `direction_full_effect_kmh = 18` (config).
 
-Use `wind_gust_kmh` as a secondary cap: if `gust ≥ 1.6 × speed` **and** `gust > 25`,
-multiply the final score by 0.85 (gusty is harder than steady).
+- At **dead calm** `dir_weight = 0` → `wind_score = speed_subscore` (~100): the
+  coastline is irrelevant when nothing is blowing.
+- As wind builds toward ~18 km/h the directional multiplier reaches full weight.
+- A **strong** wind can't be rescued by a good direction, because `speed_subscore`
+  is already near zero: 35 km/h offshore → `speed_subscore ≈ 3` → `wind_score ≈ 3`.
+
+Worked values (Mindarie, coast 270°):
+
+| wind | `speed_sub` | `dir_weight` | `mult` | score |
+|---|---:|---:|---:|---:|
+| 0 km/h any | 100 | 0.00 | – | ~100 |
+| 8 km/h offshore (E) | 100 | 0.44 | 1.00 | ~100 |
+| 8 km/h onshore (W) | 100 | 0.44 | 0.35 | ~71 |
+| 15 km/h onshore | 80 | 0.83 | 0.35 | ~37 |
+| 30 km/h onshore | 10 | 1.00 | 0.35 | ~3.5 |
+| 35 km/h offshore | 3 | 1.00 | 1.00 | ~3 |
+
+Then use `wind_gust_kmh` as a secondary cap: if `gust ≥ 1.6 × speed` **and**
+`gust > 25`, multiply by 0.85 (gusty is harder to fish than steady).
 
 ---
 
